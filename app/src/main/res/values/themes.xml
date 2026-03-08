@@ -1,0 +1,6 @@
+<resources>
+    <style name="Base.Theme.Soyle" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    </style>
+
+    <style name="Theme.Soyle" parent="Base.Theme.Soyle" />
+</resources>
