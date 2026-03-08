@@ -1,14 +1,16 @@
 package com.example.soyle.ui.screens.result
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.soyle.ui.components.ScoreBar
+import com.example.soyle.ui.components.*
+import com.example.soyle.ui.theme.*
 
 @Composable
 fun ResultScreen(
@@ -17,41 +19,68 @@ fun ResultScreen(
     onRetry : () -> Unit,
     onHome  : () -> Unit
 ) {
+    val mascotText = when {
+        score >= 85 -> "Потрясающе! Ты настоящий мастер! 🏆"
+        score >= 65 -> "Хорошо! Ещё немного и будет отлично! 💪"
+        score >= 45 -> "Неплохо! Продолжай стараться! 🙂"
+        else        -> "Не сдавайся! Попробуй ещё раз! 🦉"
+    }
+    val xpEarned = when {
+        score >= 85 -> 20
+        score >= 65 -> 15
+        score >= 45 -> 10
+        else        -> 5
+    }
+
     Column(
-        modifier            = Modifier.fillMaxSize().padding(32.dp),
+        modifier            = Modifier
+            .fillMaxSize()
+            .background(DuoWhite)
+            .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text       = "Результат",
-            fontSize   = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // ── Маскот ────────────────────────────────────────────────────────
+        DuoMascotSpeech(text = mascotText)
 
-        ScoreBar(score = score)
-
-        Text(
-            text     = "Звук «$phoneme»",
-            fontSize = 20.sp,
-            color    = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Row(
-            modifier            = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // ── Результат ─────────────────────────────────────────────────────
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedButton(
-                onClick  = onRetry,
-                modifier = Modifier.weight(1f).height(52.dp)
-            ) {
-                Text("Ещё раз", fontSize = 16.sp)
-            }
-            Button(
-                onClick  = onHome,
-                modifier = Modifier.weight(1f).height(52.dp)
-            ) {
-                Text("Дальше →", fontSize = 16.sp)
-            }
+            Text(
+                text       = "Результат",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize   = 22.sp,
+                color      = DuoTextPrimary
+            )
+
+            DuoScoreCircle(score = score, size = 160.dp)
+
+            Text(
+                text     = "Звук «$phoneme»",
+                fontSize = 16.sp,
+                color    = DuoTextSecondary
+            )
+
+            DuoXpBadge(xp = xpEarned)
+        }
+
+        // ── Кнопки ────────────────────────────────────────────────────────
+        Column(
+            modifier            = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DuoButton(
+                text     = "ПРОДОЛЖИТЬ",
+                modifier = Modifier.fillMaxWidth(),
+                onClick  = onHome
+            )
+            DuoOutlineButton(
+                text     = "Попробовать снова",
+                modifier = Modifier.fillMaxWidth(),
+                onClick  = onRetry
+            )
         }
     }
 }

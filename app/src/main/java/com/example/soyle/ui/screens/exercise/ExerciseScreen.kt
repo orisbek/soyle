@@ -4,9 +4,9 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,11 +20,9 @@ import androidx.core.content.PermissionChecker
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.soyle.domain.model.ExerciseMode
 import com.example.soyle.domain.model.MascotEmotion
-import com.example.soyle.ui.components.MascotView
-import com.example.soyle.ui.components.RecordButton
-import com.example.soyle.ui.components.ScoreBar
+import com.example.soyle.ui.components.*
+import com.example.soyle.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseScreen(
     phoneme   : String,
@@ -34,10 +32,9 @@ fun ExerciseScreen(
     viewModel : ExerciseViewModel = hiltViewModel()
 ) {
     val uiState      by viewModel.uiState.collectAsState()
-    val exerciseMode = remember { ExerciseMode.valueOf(mode) }
-    val context      = LocalContext.current
+    val exerciseMode  = remember { ExerciseMode.valueOf(mode) }
+    val context       = LocalContext.current
 
-    // ── Разрешение на микрофон ─────────────────────────────────────────────
     var hasMicPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -45,14 +42,10 @@ fun ExerciseScreen(
             ) == PermissionChecker.PERMISSION_GRANTED
         )
     }
-
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasMicPermission = isGranted
-    }
+        ActivityResultContracts.RequestPermission()
+    ) { hasMicPermission = it }
 
-    // ── Переход на результат ───────────────────────────────────────────────
     LaunchedEffect(uiState) {
         if (uiState is ExerciseUiState.Success) {
             kotlinx.coroutines.delay(2000)
@@ -60,100 +53,115 @@ fun ExerciseScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Звук «$phoneme»") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DuoWhite)
+            .padding(bottom = 24.dp)
+    ) {
+        // ── Top bar ────────────────────────────────────────────────────────
+        DuoTopBar(
+            progress = null,
+            onBack   = onBack,
+            trailing = {
+                DuoHeartRow(lives = 3)
+            }
+        )
+
+        // ── Контент ────────────────────────────────────────────────────────
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier            = Modifier
+                .weight(1f)
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
 
+            // Маскот с подсказкой
+            AnimatedContent(targetState = uiState, label = "mascot") { state ->
+                val mascotText = when (state) {
+                    is ExerciseUiState.Idle      -> "Скажи звук «$phoneme»! 🎙"
+                    is ExerciseUiState.Recording -> "Слушаю... говори!"
+                    is ExerciseUiState.Analyzing -> "Анализирую произношение..."
+                    is ExerciseUiState.Success   -> state.feedback
+                    is ExerciseUiState.Error     -> "Что-то пошло не так 😅"
+                }
+                DuoMascotSpeech(text = mascotText)
+            }
+
             // ── Большая буква ──────────────────────────────────────────────
             Text(
                 text       = phoneme,
                 fontSize   = 120.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = MaterialTheme.colorScheme.primary
+                fontWeight = FontWeight.Black,
+                color      = DuoGreen
             )
 
             // ── Центральная зона ───────────────────────────────────────────
-            AnimatedContent(
-                targetState = uiState,
-                label       = "exerciseContent"
-            ) { state ->
+            AnimatedContent(targetState = uiState, label = "content") { state ->
                 when (state) {
                     is ExerciseUiState.Idle -> {
-                        MascotView(emotion = MascotEmotion.GREETING)
+                        Text(
+                            text     = "Нажми кнопку и произнеси звук",
+                            fontSize = 14.sp,
+                            color    = DuoTextSecondary
+                        )
                     }
                     is ExerciseUiState.Recording -> {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text       = "🎙 Говори...",
-                                fontSize   = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color      = MaterialTheme.colorScheme.error
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("🎙", fontSize = 40.sp)
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth(),
+                                color    = DuoRed,
+                                trackColor = DuoRedLight
                             )
-                            Spacer(Modifier.height(8.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
                     }
                     is ExerciseUiState.Analyzing -> {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(modifier = Modifier.size(56.dp))
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text  = "Анализирую...",
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(color = DuoGreen, modifier = Modifier.size(48.dp))
+                            Text("Анализирую...", fontSize = 14.sp, color = DuoTextSecondary)
                         }
                     }
                     is ExerciseUiState.Success -> {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            ScoreBar(score = state.score)
-                            MascotView(emotion = state.emotion)
-                            Text(text = state.feedback, fontSize = 16.sp)
-                            Text(
-                                text       = "+${state.xp} XP",
-                                fontSize   = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color      = MaterialTheme.colorScheme.tertiary
-                            )
+                            DuoScoreCircle(score = state.score)
+                            DuoXpBadge(xp = state.xp)
                         }
                     }
                     is ExerciseUiState.Error -> {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text  = "⚠️ ${state.message}",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(Modifier.height(12.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚠️ ${state.message}", color = DuoRed, fontSize = 14.sp)
                             TextButton(onClick = { viewModel.reset() }) {
-                                Text("Попробовать снова")
+                                Text("Попробовать снова", color = DuoGreen, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
+        }
 
-            // ── Кнопка записи или запрос разрешения ───────────────────────
-            if (hasMicPermission) {
+        // ── Кнопка записи ─────────────────────────────────────────────────
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            if (!hasMicPermission) {
+                DuoButton(
+                    text    = "РАЗРЕШИТЬ МИКРОФОН 🎙",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+                )
+            } else {
                 RecordButton(
                     isRecording = uiState is ExerciseUiState.Recording,
                     enabled     = uiState is ExerciseUiState.Idle ||
@@ -166,23 +174,6 @@ fun ExerciseScreen(
                         }
                     }
                 )
-            } else {
-                // Нет разрешения — показываем кнопку запроса
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text  = "Нужен доступ к микрофону",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    ) {
-                        Text("Разрешить микрофон 🎙")
-                    }
-                }
             }
         }
     }

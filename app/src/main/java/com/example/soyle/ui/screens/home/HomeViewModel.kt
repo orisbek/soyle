@@ -1,4 +1,104 @@
 package com.example.soyle.ui.screens.home
 
-class HomeViewModel {
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.soyle.domain.model.Exercise
+import com.example.soyle.domain.model.ExerciseMode
+import com.example.soyle.domain.model.UserProgress
+import com.example.soyle.domain.usecase.GetDailyExercises
+import com.example.soyle.domain.repository.SpeechRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+// ── UI State ──────────────────────────────────────────────────────────────────
+
+data class HomeUiState(
+    val isLoading        : Boolean        = true,
+    val userName         : String         = "Малыш",
+    val currentStreak    : Int            = 0,
+    val longestStreak    : Int            = 0,
+    val totalXp          : Int            = 0,
+    val level            : Int            = 1,
+    val xpToNextLevel    : Int            = 500,
+    val xpProgress       : Float         = 0f,          // 0.0–1.0
+    val exercises        : List<Exercise> = emptyList(),
+    val todayDone        : Int            = 0,
+    val todayTotal       : Int            = 5,
+    val greeting         : String         = "Привет! 👋",
+    val error            : String?        = null
+)
+
+// ── ViewModel ─────────────────────────────────────────────────────────────────
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val getDailyExercises : GetDailyExercises,
+    private val repository        : SpeechRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(HomeUiState())
+    val uiState = _uiState.asStateFlow()
+
+    private val userId = "current_user"   // TODO: UserSession
+
+    init {
+        loadData()
+    }
+
+    private fun loadData() {
+        viewModelScope.launch {
+            // Загружаем упражнения
+            try {
+                val exercises = getDailyExercises(userId)
+                _uiState.update { it.copy(exercises = exercises, isLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
+            }
+
+            // Подписываемся на прогресс (Flow)
+            repository.getUserProgress(userId)
+                .catch { e ->
+                    _uiState.update { it.copy(error = e.message) }
+                }
+                .collect { progress ->
+                    _uiState.update { state ->
+                        val xpInCurrentLevel = progress.totalXp % 500
+                        state.copy(
+                            currentStreak = progress.currentStreak,
+                            longestStreak = progress.longestStreak,
+                            totalXp       = progress.totalXp,
+                            level         = progress.level,
+                            xpProgress    = xpInCurrentLevel / 500f,
+                            xpToNextLevel = 500 - xpInCurrentLevel,
+                            greeting      = buildGreeting(progress)
+                        )
+                    }
+                }
+        }
+    }
+
+    fun refresh() {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        loadData()
+    }
+
+    private fun buildGreeting(progress: UserProgress): String {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val timeGreeting = when {
+            hour < 12 -> "Доброе утро"
+            hour < 17 -> "Добрый день"
+            else      -> "Добрый вечер"
+        }
+        return when {
+            progress.currentStreak >= 7 -> "$timeGreeting! 🔥 Ты огонь — ${progress.currentStreak} дней подряд!"
+            progress.currentStreak >= 3 -> "$timeGreeting! 💪 Уже ${progress.currentStreak} дня подряд!"
+            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало! 🌟"
+            else                        -> "$timeGreeting! Пора тренироваться! 🦉"
+        }
+    }
 }
