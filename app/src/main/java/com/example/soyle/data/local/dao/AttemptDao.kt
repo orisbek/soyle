@@ -20,6 +20,13 @@ interface AttemptDao {
     """)
     fun getByPhoneme(userId: String, phoneme: String): Flow<List<com.example.soyle.data.local.entity.AttemptEntity>>
 
+    @Query("""
+        SELECT * FROM attempts
+        WHERE userId = :userId
+        ORDER BY timestamp DESC
+    """)
+    fun getAllByUser(userId: String): Flow<List<com.example.soyle.data.local.entity.AttemptEntity>>
+
     /** Средний score за последние N дней */
     @Query("""
         SELECT AVG(score) FROM attempts 
