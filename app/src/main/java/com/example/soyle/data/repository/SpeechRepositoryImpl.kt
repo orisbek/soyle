@@ -109,7 +109,7 @@ class SpeechRepositoryImpl @Inject constructor(
     // ── Прогресс пользователя ─────────────────────────────────────────────────
 
     override fun getUserProgress(userId: String): Flow<UserProgress> {
-        return attemptDao.getByPhoneme(userId, "Р").map { attempts ->
+        return attemptDao.getAllByUser(userId).map { attempts ->
             UserProgress(
                 userId        = userId,
                 phonemeScores = attempts

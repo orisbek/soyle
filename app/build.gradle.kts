@@ -20,8 +20,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
+            buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "true")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "API_BASE_URL", "\"https://api.example.com/\"")
+            buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -40,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

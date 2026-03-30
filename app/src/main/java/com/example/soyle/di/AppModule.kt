@@ -2,6 +2,7 @@ package com.example.soyle.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.soyle.BuildConfig
 import com.example.soyle.data.api.SoyleApi
 import com.example.soyle.data.local.dao.AttemptDao
 import com.example.soyle.data.local.dao.ExerciseDao
@@ -41,11 +42,15 @@ object NetworkModule {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)    // AI анализ может занять до 30с
         .writeTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor(
-            HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY  // TODO: NONE в release
+        .apply {
+            if (BuildConfig.ENABLE_HTTP_LOGGING) {
+                addInterceptor(
+                    HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BODY
+                    }
+                )
             }
-        )
+        }
         .build()
 
     @Provides
@@ -54,7 +59,7 @@ object NetworkModule {
         okHttpClient : OkHttpClient,
         moshi        : Moshi
     ): Retrofit = Retrofit.Builder()
-        .baseUrl("http://10.0.2.2:8000/")    // эмулятор → localhost сервера
+        .baseUrl(BuildConfig.API_BASE_URL)
         .client(okHttpClient)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
