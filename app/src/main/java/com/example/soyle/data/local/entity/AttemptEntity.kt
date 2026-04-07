@@ -4,16 +4,16 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Таблица всех попыток произношения.
- * Хранится локально — работает офлайн, используется для графиков прогресса.
+ * Таблица попыток произношения в локальной БД (Room).
+ * Каждая запись = одна попытка ребёнка произнести звук/слово.
  */
 @Entity(tableName = "attempts")
 data class AttemptEntity(
     @PrimaryKey(autoGenerate = true)
     val id        : Long   = 0,
     val userId    : String,
-    val phoneme   : String,
-    val mode      : String,     // ExerciseMode.name
-    val score     : Int,
+    val phoneme   : String,          // "Р", "Л", "Ш"
+    val mode      : String,          // ExerciseMode.name
+    val score     : Int,             // 0–100
     val timestamp : Long = System.currentTimeMillis()
 )

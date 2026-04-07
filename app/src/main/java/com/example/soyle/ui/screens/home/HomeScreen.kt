@@ -1,5 +1,7 @@
 package com.example.soyle.ui.screens.home
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -8,11 +10,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,35 +41,13 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        containerColor = DuoBg,
+        containerColor = KidsBg,
         bottomBar = {
-            NavigationBar(
-                containerColor = DuoWhite,
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    selected = true,
-                    onClick  = {},
-                    icon     = { Icon(Icons.Default.Home, null) },
-                    label    = { Text("Главная", fontWeight = FontWeight.Bold) },
-                    colors   = NavigationBarItemDefaults.colors(
-                        indicatorColor = DuoGreenLight,
-                        selectedIconColor = DuoGreen
-                    )
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick  = onOpenProgress,
-                    icon     = { Icon(Icons.Default.BarChart, null) },
-                    label    = { Text("Прогресс") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick  = onOpenProfile,
-                    icon     = { Icon(Icons.Default.Person, null) },
-                    label    = { Text("Профиль") }
-                )
-            }
+            KidsBottomBar(
+                onHome     = {},
+                onProgress = onOpenProgress,
+                onProfile  = onOpenProfile
+            )
         }
     ) { padding ->
         Column(
@@ -70,32 +56,32 @@ fun HomeScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Шапка ─────────────────────────────────────────────────────
-            HomeTopBar(
-                streak   = uiState.currentStreak,
-                xp       = uiState.totalXp,
-                level    = uiState.level,
+            // ── Красочная шапка с облачком ────────────────────────────────
+            KidsTopBar(
+                streak    = uiState.currentStreak,
+                xp        = uiState.totalXp,
+                level     = uiState.level,
                 onProfile = onOpenProfile
             )
 
             Column(
                 modifier            = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Spacer(Modifier.height(4.dp))
 
-                // ── Маскот-приветствие ─────────────────────────────────────
-                DuoMascotSpeech(text = uiState.greeting)
+                // ── Маскот с приветствием ──────────────────────────────────
+                KidsMascotCard(text = uiState.greeting)
 
                 // ── Дневная цель ───────────────────────────────────────────
-                DailyGoalCard(done = uiState.todayDone, total = uiState.todayTotal)
+                KidsDailyGoal(done = uiState.todayDone, total = uiState.todayTotal)
 
-                // ── Сегодняшние упражнения ─────────────────────────────────
-                DuoSectionHeader(title = "Сегодняшние упражнения")
+                // ── Упражнения сегодня ─────────────────────────────────────
+                KidsSectionTitle(title = "✨ Сегодня учим", emoji = "")
 
                 if (uiState.isLoading) {
                     Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
-                        CircularProgressIndicator(color = DuoGreen)
+                        CircularProgressIndicator(color = KidsMint, modifier = Modifier.size(40.dp))
                     }
                 } else {
                     LazyRow(
@@ -103,7 +89,7 @@ fun HomeScreen(
                         contentPadding        = PaddingValues(end = 4.dp)
                     ) {
                         items(uiState.exercises.take(6)) { exercise ->
-                            ExerciseCard(
+                            KidsExerciseCard(
                                 exercise = exercise,
                                 onClick  = { onStartExercise(exercise.phoneme, exercise.mode.name) }
                             )
@@ -111,66 +97,167 @@ fun HomeScreen(
                     }
                 }
 
-                // ── Быстрый старт ──────────────────────────────────────────
-                DuoSectionHeader(title = "Все режимы")
-                QuickStartList(onStartExercise = onStartExercise)
+                // ── Все режимы ─────────────────────────────────────────────
+                KidsSectionTitle(title = "🎯 Все занятия", emoji = "")
+                KidsModeList(onStartExercise = onStartExercise)
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
             }
         }
     }
 }
 
-// ── Шапка ─────────────────────────────────────────────────────────────────────
+// ── Детская шапка с градиентом ────────────────────────────────────────────────
 
 @Composable
-private fun HomeTopBar(
+private fun KidsTopBar(
     streak   : Int,
     xp       : Int,
     level    : Int,
     onProfile: () -> Unit
 ) {
-    Row(
-        modifier              = Modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .background(DuoWhite)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(KidsMint, KidsBlue)
+                )
+            )
+            .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
-        // Логотип / название
-        Text(
-            text       = "Söyle",
-            fontWeight = FontWeight.Black,
-            fontSize   = 22.sp,
-            color      = DuoGreen
-        )
-
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment     = Alignment.CenterVertically
+            modifier              = Modifier.fillMaxWidth(),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            DuoStreakBadge(streak = streak)
-            DuoXpBadge(xp = xp)
-            DuoLevelBadge(level = level)
+            // Лого
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🦜", fontSize = 28.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text       = "Söyle",
+                    fontWeight = FontWeight.Black,
+                    fontSize   = 26.sp,
+                    color      = Color.White
+                )
+            }
+            // Бейджи
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                KidsBadge(icon = "🔥", value = streak.toString(), color = KidsOrange)
+                KidsBadge(icon = "⭐", value = xp.toString(), color = KidsYellow)
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.3f))
+                        .clickable(onClick = onProfile)
+                        .padding(8.dp)
+                ) {
+                    Text("👤", fontSize = 18.sp)
+                }
+            }
         }
     }
-    HorizontalDivider(color = DuoBorder, thickness = 1.dp)
+}
+
+@Composable
+private fun KidsBadge(icon: String, value: String, color: Color) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.25f))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(icon, fontSize = 16.sp)
+        Text(
+            text       = value,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize   = 14.sp,
+            color      = Color.White
+        )
+    }
+}
+
+// ── Маскот-карточка ───────────────────────────────────────────────────────────
+
+@Composable
+private fun KidsMascotCard(text: String) {
+    val infiniteTransition = rememberInfiniteTransition(label = "bounce")
+    val offsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue  = -6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "mascotBounce"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(KidsMintLight, KidsBlueLight),
+                    start  = Offset(0f, 0f),
+                    end    = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                )
+            )
+            .border(3.dp, KidsMint.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Маскот — парrot
+        Text(
+            text     = "🦜",
+            fontSize = 52.sp,
+            modifier = Modifier.offset(y = offsetY.dp)
+        )
+        Column {
+            Text(
+                text       = "Привет!",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize   = 13.sp,
+                color      = KidsMintDark
+            )
+            Text(
+                text       = text,
+                fontWeight = FontWeight.SemiBold,
+                fontSize   = 15.sp,
+                color      = KidsTextPrimary,
+                lineHeight = 21.sp
+            )
+        }
+    }
 }
 
 // ── Дневная цель ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun DailyGoalCard(done: Int, total: Int) {
+private fun KidsDailyGoal(done: Int, total: Int) {
     val progress = if (total > 0) done.toFloat() / total else 0f
+    val stars    = when {
+        progress >= 1f   -> 3
+        progress >= 0.6f -> 2
+        progress >= 0.3f -> 1
+        else             -> 0
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DuoGreenPale, RoundedCornerShape(16.dp))
-            .border(2.dp, DuoGreenLight, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(KidsYellowLight)
+            .border(3.dp, KidsYellow, RoundedCornerShape(20.dp))
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             modifier              = Modifier.fillMaxWidth(),
@@ -178,79 +265,222 @@ private fun DailyGoalCard(done: Int, total: Int) {
             verticalAlignment     = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🎯", fontSize = 20.sp)
+                Text("🎯", fontSize = 22.sp)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text       = "Дневная цель",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize   = 15.sp,
-                    color      = DuoTextPrimary
+                    fontSize   = 16.sp,
+                    color      = KidsTextPrimary
                 )
             }
-            Text(
-                text       = "$done / $total упражнений",
-                fontWeight = FontWeight.Bold,
-                fontSize   = 13.sp,
-                color      = DuoGreen
+            // Звёздочки прогресса
+            Row {
+                repeat(3) { i ->
+                    Text(
+                        text     = if (i < stars) "⭐" else "☆",
+                        fontSize = 20.sp
+                    )
+                }
+            }
+        }
+
+        // Прогресс-бар толстый и красивый
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(KidsYellow, KidsOrange)
+                        )
+                    )
             )
         }
-        DuoProgressBar(progress = progress)
+
+        Text(
+            text       = "$done из $total занятий выполнено 🎉",
+            fontWeight = FontWeight.Bold,
+            fontSize   = 13.sp,
+            color      = KidsTextSecondary
+        )
     }
+}
+
+// ── Заголовок секции ──────────────────────────────────────────────────────────
+
+@Composable
+private fun KidsSectionTitle(title: String, emoji: String) {
+    Text(
+        text       = title,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize   = 18.sp,
+        color      = KidsTextPrimary
+    )
 }
 
 // ── Карточка упражнения ───────────────────────────────────────────────────────
 
 @Composable
-private fun ExerciseCard(exercise: Exercise, onClick: () -> Unit) {
+private fun KidsExerciseCard(exercise: Exercise, onClick: () -> Unit) {
+    val colors = listOf(
+        Pair(KidsMintLight, KidsMint),
+        Pair(KidsBlueLight, KidsBlue),
+        Pair(KidsPinkLight, KidsPink),
+        Pair(KidsYellowLight, KidsYellow),
+        Pair(KidsGreenLight, KidsGreen),
+    )
+    val (bg, border) = colors[exercise.mode.ordinal % colors.size]
+
     Column(
         modifier = Modifier
-            .width(100.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(2.dp, DuoBorder, RoundedCornerShape(16.dp))
-            .background(DuoWhite)
+            .width(90.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(bg)
+            .border(3.dp, border, RoundedCornerShape(20.dp))
             .clickable { onClick() }
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(modeEmoji(exercise.mode), fontSize = 28.sp)
+        Text(modeEmoji(exercise.mode), fontSize = 32.sp)
         Text(
             text       = exercise.content,
             fontWeight = FontWeight.Black,
-            fontSize   = 20.sp,
-            color      = DuoGreen
+            fontSize   = 22.sp,
+            color      = border
         )
         Text(
             text     = modeLabel(exercise.mode),
             fontSize = 10.sp,
-            color    = DuoTextSecondary,
+            color    = KidsTextSecondary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
-// ── Список режимов ────────────────────────────────────────────────────────────
+// ── Список режимов (красивые карточки) ───────────────────────────────────────
 
 @Composable
-private fun QuickStartList(onStartExercise: (String, String) -> Unit) {
+private fun KidsModeList(onStartExercise: (String, String) -> Unit) {
     val modes = listOf(
-        Triple(ExerciseMode.SOUND,        "Звук «Р»",    "🔤"),
-        Triple(ExerciseMode.SYLLABLE,     "Слоги с Р",   "📝"),
-        Triple(ExerciseMode.WORD,         "Слова с Р",   "🗣️"),
-        Triple(ExerciseMode.LISTEN_CHOOSE,"Слушай",       "👂"),
-        Triple(ExerciseMode.VISUALIZE,    "Визуализация", "📊"),
-        Triple(ExerciseMode.GAME,         "Игра",         "🎮"),
+        ModeItem(ExerciseMode.SOUND,         "Звук «Р»",      "🔤", KidsMint,   KidsMintLight),
+        ModeItem(ExerciseMode.SYLLABLE,      "Слоги с Р",     "📝", KidsBlue,   KidsBlueLight),
+        ModeItem(ExerciseMode.WORD,          "Слова с Р",     "🗣️", KidsPurple, Color(0xFFEDE7FF)),
+        ModeItem(ExerciseMode.LISTEN_CHOOSE, "Слушай и выбирай","👂", KidsOrange, Color(0xFFFFEDD5)),
+        ModeItem(ExerciseMode.VISUALIZE,     "Волна звука",   "🌊", KidsGreen,  KidsGreenLight),
+        ModeItem(ExerciseMode.GAME,          "Поймай букву!",  "🎮", KidsPink,   KidsPinkLight),
     )
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        modes.forEach { (mode, label, emoji) ->
-            DuoChoiceCard(
-                text     = label,
-                emoji    = emoji,
-                modifier = Modifier.fillMaxWidth(),
-                onClick  = { onStartExercise("Р", mode.name) }
+        modes.forEach { item ->
+            KidsModeCard(item = item) {
+                onStartExercise("Р", item.mode.name)
+            }
+        }
+    }
+}
+
+private data class ModeItem(
+    val mode       : ExerciseMode,
+    val label      : String,
+    val emoji      : String,
+    val color      : Color,
+    val bgColor    : Color
+)
+
+@Composable
+private fun KidsModeCard(item: ModeItem, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(item.bgColor)
+            .border(3.dp, item.color.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(item.color),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(item.emoji, fontSize = 26.sp)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text       = item.label,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize   = 16.sp,
+                color      = KidsTextPrimary
             )
         }
+        // Стрелочка
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(item.color),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("→", fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+// ── Нижняя навигация ─────────────────────────────────────────────────────────
+
+@Composable
+private fun KidsBottomBar(
+    onHome    : () -> Unit,
+    onProgress: () -> Unit,
+    onProfile : () -> Unit
+) {
+    NavigationBar(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
+        modifier       = Modifier.border(
+            width = 2.dp,
+            color = KidsBorder,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        )
+    ) {
+        NavigationBarItem(
+            selected = true,
+            onClick  = onHome,
+            icon     = { Text("🏠", fontSize = 22.sp) },
+            label    = { Text("Главная", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+            colors   = NavigationBarItemDefaults.colors(
+                indicatorColor    = KidsMintLight,
+                selectedIconColor = KidsMint
+            )
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick  = onProgress,
+            icon     = { Text("📊", fontSize = 22.sp) },
+            label    = { Text("Прогресс", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick  = onProfile,
+            icon     = { Text("👦", fontSize = 22.sp) },
+            label    = { Text("Профиль", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+        )
     }
 }
 
@@ -259,7 +489,7 @@ private fun modeEmoji(mode: ExerciseMode) = when (mode) {
     ExerciseMode.SYLLABLE      -> "📝"
     ExerciseMode.WORD          -> "🗣️"
     ExerciseMode.LISTEN_CHOOSE -> "👂"
-    ExerciseMode.VISUALIZE     -> "📊"
+    ExerciseMode.VISUALIZE     -> "🌊"
     ExerciseMode.GAME          -> "🎮"
 }
 
