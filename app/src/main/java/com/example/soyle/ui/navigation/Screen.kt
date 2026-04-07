@@ -2,10 +2,14 @@ package com.example.soyle.ui.navigation
 
 sealed class Screen(val route: String) {
 
-    data object Home       : Screen("home")
-    data object Onboarding : Screen("onboarding")
-    data object Progress   : Screen("progress")
-    data object Profile    : Screen("profile")
+    data object Home           : Screen("home")
+    data object Onboarding     : Screen("onboarding")
+    data object Progress       : Screen("progress")
+    data object Profile        : Screen("profile")
+    data object Game           : Screen("game")
+    data object PronunciationAccuracy : Screen("pronunciation_accuracy/{phoneme}") {
+        fun createRoute(phoneme: String) = "pronunciation_accuracy/$phoneme"
+    }
 
     data object Exercise : Screen("exercise/{phoneme}/{mode}") {
         fun createRoute(phoneme: String, mode: String) =

@@ -2,57 +2,77 @@ package com.example.soyle.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ── Основная палитра (Duolingo-style) ─────────────────────────────────────────
-val DuoGreen         = Color(0xFF58CC02)   // основной зелёный — кнопки, акценты
-val DuoGreenDark     = Color(0xFF46A302)   // тень под кнопкой
-val DuoGreenLight    = Color(0xFFD7FFB8)   // светлый фон выделения
-val DuoGreenPale     = Color(0xFFF0FFF0)   // очень светлый фон
+// ── Детская палитра «Söyle Kids» ─────────────────────────────────────────────
+val KidsMint          = Color(0xFF4ECDC4)
+val KidsMintDark      = Color(0xFF38B2A9)
+val KidsMintLight     = Color(0xFFB2F0ED)
 
-val DuoBlue          = Color(0xFF1CB0F6)   // вторичный — выделение выбранного
-val DuoBlueDark      = Color(0xFF0A91D5)
-val DuoBlueLight     = Color(0xFFDDF4FF)   // фон выбранной карточки
+val KidsYellow        = Color(0xFFFFD93D)
+val KidsYellowDark    = Color(0xFFF0C030)
+val KidsYellowLight   = Color(0xFFFFF6C2)
 
-val DuoRed           = Color(0xFFFF4B4B)   // ошибки, жизни
-val DuoRedLight      = Color(0xFFFFE0E0)
+val KidsPink          = Color(0xFFFF6B9D)
+val KidsPinkLight     = Color(0xFFFFE0EE)
 
-val DuoYellow        = Color(0xFFFFC800)   // streak, XP, достижения
-val DuoYellowLight   = Color(0xFFFFF3CC)
-val DuoOrange        = Color(0xFFFF9600)   // предупреждение
+val KidsOrange        = Color(0xFFFF9F43)
+val KidsPurple        = Color(0xFFA29BFE)
+val KidsPurpleDark    = Color(0xFF7B73F0)
 
-val DuoPurple        = Color(0xFFCE82FF)   // редкие акценты
+val KidsBlue          = Color(0xFF54A0FF)
+val KidsBlueLight     = Color(0xFFD6EAFF)
 
-// ── Нейтральные ───────────────────────────────────────────────────────────────
-val DuoWhite         = Color(0xFFFFFFFF)
-val DuoBg            = Color(0xFFFFFFFF)   // фон экранов — чисто белый
-val DuoCardBg        = Color(0xFFFFFFFF)
+val KidsGreen         = Color(0xFF6BCB77)
+val KidsGreenDark     = Color(0xFF4EB05A)
+val KidsGreenLight    = Color(0xFFCEF2D1)
 
-val DuoBorder        = Color(0xFFE5E5E5)   // граница карточек
-val DuoBorderSelected = Color(0xFF84D8FF)  // граница выбранной карточки
+val KidsRed           = Color(0xFFFF6B6B)
+val KidsBg            = Color(0xFFFFF8F0)
+val KidsCardBg        = Color(0xFFFFFFFF)
+val KidsBorder        = Color(0xFFEEE0D5)
+val KidsTextPrimary   = Color(0xFF2D3436)
+val KidsTextSecondary = Color(0xFF888888)
+val KidsTextDisabled  = Color(0xFFBBBBBB)
+val KidsStar          = Color(0xFFFFD700)
 
-val DuoGray          = Color(0xFFAFB7C3)   // неактивный текст
-val DuoGrayLight     = Color(0xFFE5E5E5)   // неактивная кнопка фон
-val DuoGrayDark      = Color(0xFF777777)
+// Алиасы для обратной совместимости
+val DuoGreen          = KidsMint
+val DuoGreenDark      = KidsMintDark
+val DuoGreenLight     = KidsMintLight
+val DuoGreenPale      = Color(0xFFF0FFFE)
+val DuoBlue           = KidsBlue
+val DuoBlueDark       = Color(0xFF3D8FEF)
+val DuoBlueLight      = KidsBlueLight
+val DuoRed            = KidsPink
+val DuoRedLight       = KidsPinkLight
+val DuoYellow         = KidsYellow
+val DuoYellowLight    = KidsYellowLight
+val DuoOrange         = KidsOrange
+val DuoPurple         = KidsPurple
+val DuoWhite          = Color(0xFFFFFFFF)
+val DuoBg             = KidsBg
+val DuoCardBg         = KidsCardBg
+val DuoBorder         = KidsBorder
+val DuoBorderSelected = KidsMint
+val DuoGray           = Color(0xFFAAB2C0)
+val DuoGrayLight      = Color(0xFFEEEEEE)
+val DuoGrayDark       = Color(0xFF666666)
+val DuoTextPrimary    = KidsTextPrimary
+val DuoTextSecondary  = KidsTextSecondary
+val DuoTextDisabled   = KidsTextDisabled
+val DuoProgressBg     = Color(0xFFE5E5E5)
+val DuoProgressFill   = KidsMint
 
-val DuoTextPrimary   = Color(0xFF3C3C3C)   // основной текст
-val DuoTextSecondary = Color(0xFF777777)
-val DuoTextDisabled  = Color(0xFFAFB7C3)
-
-// ── Прогресс-бар ──────────────────────────────────────────────────────────────
-val DuoProgressBg    = Color(0xFFE5E5E5)
-val DuoProgressFill  = DuoGreen
-
-// ── Score цвета ───────────────────────────────────────────────────────────────
 fun scoreColor(score: Int): Color = when {
-    score >= 85 -> DuoGreen
-    score >= 65 -> DuoYellow
-    score >= 45 -> DuoOrange
-    else        -> DuoRed
+    score >= 85 -> KidsGreen
+    score >= 65 -> KidsYellow
+    score >= 45 -> KidsOrange
+    else        -> KidsPink
 }
 
 fun levelColor(level: Int): Color = when {
-    level >= 20 -> DuoPurple
-    level >= 15 -> DuoBlue
-    level >= 10 -> DuoYellow
-    level >= 5  -> DuoGreen
-    else        -> DuoGray
+    level >= 20 -> KidsPurple
+    level >= 15 -> KidsBlue
+    level >= 10 -> KidsYellow
+    level >= 5  -> KidsMint
+    else        -> Color(0xFFAAB2C0)
 }

@@ -1,43 +1,28 @@
 package com.example.soyle.ui.theme
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
-private val SoyleLightColors = lightColorScheme(
-    primary            = DuoGreen,
-    onPrimary          = DuoWhite,
-    primaryContainer   = DuoGreenLight,
-    onPrimaryContainer = DuoGreenDark,
-
-    secondary          = DuoBlue,
-    onSecondary        = DuoWhite,
-    secondaryContainer = DuoBlueLight,
-    onSecondaryContainer = DuoBlueDark,
-
-    tertiary           = DuoYellow,
-    onTertiary         = DuoTextPrimary,
-    tertiaryContainer  = DuoYellowLight,
-
-    background         = DuoBg,
-    onBackground       = DuoTextPrimary,
-
-    surface            = DuoCardBg,
-    onSurface          = DuoTextPrimary,
-    onSurfaceVariant   = DuoTextSecondary,
-    outline            = DuoBorder,
-    outlineVariant     = DuoBorder,
-
-    error              = DuoRed,
-    onError            = DuoWhite,
-    errorContainer     = DuoRedLight,
+private val KidsColorScheme = lightColorScheme(
+    primary          = KidsMint,
+    onPrimary        = Color.White,
+    primaryContainer = KidsMintLight,
+    secondary        = KidsYellow,
+    onSecondary      = KidsTextPrimary,
+    background       = KidsBg,
+    surface          = KidsCardBg,
+    onBackground     = KidsTextPrimary,
+    onSurface        = KidsTextPrimary,
+    error            = KidsPink,
+    onError          = Color.White
 )
 
 @Composable
 fun SoyleTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = SoyleLightColors,
-        typography  = SoyleTypography,
+        colorScheme = KidsColorScheme,
+        typography  = KidsTypography,
         content     = content
     )
 }

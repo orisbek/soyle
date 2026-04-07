@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,7 +45,6 @@ class HomeViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private val userId = "current_user"   // TODO: UserSession
-    private var progressJob: Job? = null
 
     init {
         loadData()
@@ -63,19 +61,6 @@ class HomeViewModel @Inject constructor(
             }
 
             // Подписываемся на прогресс (Flow)
-            observeProgress()
-        }
-    }
-
-    fun refresh() {
-        progressJob?.cancel()
-        _uiState.update { it.copy(isLoading = true, error = null) }
-        loadData()
-    }
-
-    private fun observeProgress() {
-        progressJob?.cancel()
-        progressJob = viewModelScope.launch {
             repository.getUserProgress(userId)
                 .catch { e ->
                     _uiState.update { it.copy(error = e.message) }
@@ -95,6 +80,11 @@ class HomeViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    fun refresh() {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        loadData()
     }
 
     private fun buildGreeting(progress: UserProgress): String {

@@ -8,10 +8,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.soyle.ui.screens.exercise.ExerciseScreen
+import com.example.soyle.ui.screens.game.GameScreen
 import com.example.soyle.ui.screens.home.HomeScreen
 import com.example.soyle.ui.screens.onboarding.OnboardingScreen
 import com.example.soyle.ui.screens.profile.ProfileScreen
 import com.example.soyle.ui.screens.progress.ProgressScreen
+import com.example.soyle.ui.screens.pronunciation.PronunciationAccuracyScreen
 import com.example.soyle.ui.screens.result.ResultScreen
 
 @Composable
@@ -38,9 +40,13 @@ fun NavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 onStartExercise = { phoneme, mode ->
-                    navController.navigate(
-                        Screen.Exercise.createRoute(phoneme, mode)
-                    )
+                    if (mode == "GAME") {
+                        navController.navigate(Screen.Game.route)
+                    } else {
+                        navController.navigate(
+                            Screen.Exercise.createRoute(phoneme, mode)
+                        )
+                    }
                 },
                 onOpenProgress = {
                     navController.navigate(Screen.Progress.route)
@@ -48,6 +54,33 @@ fun NavGraph(
                 onOpenProfile = {
                     navController.navigate(Screen.Profile.route)
                 }
+            )
+        }
+
+        // ── Game ──────────────────────────────────────────────────────────
+        composable(Screen.Game.route) {
+            GameScreen(
+                onBack   = { navController.popBackStack() },
+                onFinish = { score ->
+                    navController.navigate(
+                        Screen.Result.createRoute(score, "Р")
+                    ) {
+                        popUpTo(Screen.Game.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // ── Pronunciation Accuracy ────────────────────────────────────────
+        composable(
+            route     = Screen.PronunciationAccuracy.route,
+            arguments = listOf(
+                navArgument("phoneme") { type = NavType.StringType }
+            )
+        ) { backStack ->
+            val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
+            PronunciationAccuracyScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

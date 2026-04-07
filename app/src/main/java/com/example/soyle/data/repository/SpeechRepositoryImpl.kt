@@ -1,28 +1,25 @@
 package com.example.soyle.data.repository
 
-import com.example.soyle.audio.AudioProcessor
-import com.example.soyle.data.api.AnalyzeRequest
-import com.example.soyle.data.api.SoyleApi
+import android.util.Base64
 import com.example.soyle.data.local.dao.AttemptDao
-import com.example.soyle.data.local.dao.ExerciseDao
 import com.example.soyle.data.local.entity.AttemptEntity
-import com.example.soyle.data.local.entity.ExerciseEntity
 import com.example.soyle.domain.model.*
 import com.example.soyle.domain.repository.SpeechRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SpeechRepositoryImpl @Inject constructor(
-    private val api            : SoyleApi,
-    private val attemptDao     : AttemptDao,
-    private val exerciseDao    : ExerciseDao,
-    private val audioProcessor : AudioProcessor
+    private val attemptDao: AttemptDao
 ) : SpeechRepository {
 
-    // ── Анализ произношения ───────────────────────────────────────────────────
+    // В реальном проекте вынести в BuildConfig / секреты
+    private val baseUrl = "http://10.0.2.2:8000"  // localhost для эмулятора
 
     override suspend fun analyzePronunciation(
         audioBytes : ByteArray,
@@ -30,65 +27,98 @@ class SpeechRepositoryImpl @Inject constructor(
         mode       : ExerciseMode
     ): Result<PronunciationResult> = runCatching {
 
-        // Проверяем — не тишина ли
-        if (audioProcessor.isSilent(audioBytes)) {
-            error("Ничего не записано. Говори громче!")
+        val audioBase64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+
+        val requestBody = JSONObject().apply {
+            put("audio_base64", audioBase64)
+            put("phoneme", phoneme)
+            put("mode", mode.name)
+        }.toString()
+
+        val url = URL("$baseUrl/analyze")
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod    = "POST"
+            doOutput         = true
+            connectTimeout   = 10_000
+            readTimeout      = 15_000
+            setRequestProperty("Content-Type", "application/json")
         }
 
-        // Нормализуем громкость
-        val normalized  = audioProcessor.normalize(audioBytes)
-        val base64Audio = audioProcessor.toBase64(normalized)
+        conn.outputStream.use { it.write(requestBody.toByteArray()) }
 
-        val response = api.analyze(
-            AnalyzeRequest(
-                audioBase64  = base64Audio,
-                phoneme      = phoneme,
-                userId       = "current_user",
-                exerciseMode = mode.name.lowercase()
-            )
-        )
+        val responseCode = conn.responseCode
+        val responseBody = if (responseCode == 200) {
+            conn.inputStream.bufferedReader().readText()
+        } else {
+            conn.errorStream?.bufferedReader()?.readText()
+                ?: "HTTP error $responseCode"
+        }
+        conn.disconnect()
 
-        // DTO → domain модель
-        PronunciationResult(
-            score         = response.score,
-            phoneme       = response.phoneme,
-            feedback      = response.feedback,
-            durationMs    = response.durationMs,
-            waveformData  = response.waveformData,
-            referenceWave = response.referenceWaveform,
-            xpEarned      = response.xpEarned,
-            mascotEmotion = response.mascotEmotion.toMascotEmotion()
-        )
+        if (responseCode != 200) {
+            throw Exception("Server error $responseCode: $responseBody")
+        }
+
+        parsePronunciationResult(responseBody, phoneme)
     }
 
-    // ── Дневные упражнения ────────────────────────────────────────────────────
+    private fun parsePronunciationResult(json: String, phoneme: String): PronunciationResult {
+        val obj      = JSONObject(json)
+        val score    = obj.getInt("score")
+        val feedback = obj.optString("feedback", "Молодец!")
+
+        // waveform — опционально
+        val waveformArr = obj.optJSONArray("waveform_data")
+        val waveform    = if (waveformArr != null) {
+            (0 until waveformArr.length()).map { waveformArr.getDouble(it).toFloat() }
+        } else emptyList()
+
+        val refArr    = obj.optJSONArray("reference_wave")
+        val refWave   = if (refArr != null) {
+            (0 until refArr.length()).map { refArr.getDouble(it).toFloat() }
+        } else emptyList()
+
+        val xpEarned = when {
+            score >= 85 -> 20
+            score >= 65 -> 15
+            score >= 45 -> 10
+            else        -> 5
+        }
+        val emotion = when {
+            score >= 85 -> MascotEmotion.HAPPY
+            score >= 65 -> MascotEmotion.GOOD
+            score >= 45 -> MascotEmotion.NEUTRAL
+            else        -> MascotEmotion.SUPPORTIVE
+        }
+
+        return PronunciationResult(
+            score         = score,
+            phoneme       = phoneme,
+            feedback      = feedback,
+            durationMs    = obj.optInt("duration_ms", 0),
+            waveformData  = waveform,
+            referenceWave = refWave,
+            xpEarned      = xpEarned,
+            mascotEmotion = emotion
+        )
+    }
 
     override suspend fun getDailyExercises(userId: String): List<Exercise> {
-        // Сначала пробуем из кеша
-        val cached = exerciseDao.getAll()
-        if (cached.isNotEmpty()) return cached.map { it.toDomain() }
-
-        // Если кеш пуст — загружаем с сервера
-        return try {
-            val remote = api.getDailyExercises(userId)
-            val entities = remote.map {
-                ExerciseEntity(
-                    id         = it.id,
-                    phoneme    = it.phoneme,
-                    mode       = it.mode,
-                    content    = it.content,
-                    difficulty = it.difficulty
-                )
-            }
-            exerciseDao.insertAll(entities)
-            entities.map { it.toDomain() }
-        } catch (e: Exception) {
-            // Нет интернета — возвращаем дефолтные упражнения
-            defaultExercises()
-        }
+        // Жёстко закодированный набор на старте.
+        // В следующей версии — запрос к серверу с учётом прогресса пользователя.
+        return listOf(
+            Exercise("1", "Р", ExerciseMode.SOUND,         "Р",      1),
+            Exercise("2", "Р", ExerciseMode.SYLLABLE,      "РА",     1),
+            Exercise("3", "Р", ExerciseMode.SYLLABLE,      "РО",     1),
+            Exercise("4", "Р", ExerciseMode.WORD,          "РЫБА",   2),
+            Exercise("5", "Р", ExerciseMode.WORD,          "ТРАВА",  2),
+            Exercise("6", "Р", ExerciseMode.LISTEN_CHOOSE, "РАКЕТА", 2),
+            Exercise("7", "Р", ExerciseMode.GAME,          "ИГРА",   3),
+            Exercise("8", "Л", ExerciseMode.SOUND,         "Л",      1),
+            Exercise("9", "Л", ExerciseMode.SYLLABLE,      "ЛА",     1),
+            Exercise("10","Л", ExerciseMode.WORD,          "ЛИСА",   2),
+        )
     }
-
-    // ── Сохранить попытку ─────────────────────────────────────────────────────
 
     override suspend fun saveAttempt(
         userId  : String,
@@ -98,60 +128,93 @@ class SpeechRepositoryImpl @Inject constructor(
     ) {
         attemptDao.insert(
             AttemptEntity(
-                userId    = userId,
-                phoneme   = phoneme,
-                mode      = mode.name,
-                score     = score
+                userId  = userId,
+                phoneme = phoneme,
+                mode    = mode.name,
+                score   = score
             )
         )
     }
 
-    // ── Прогресс пользователя ─────────────────────────────────────────────────
+    override fun getUserProgress(userId: String): Flow<UserProgress> =
+        attemptDao.getAttemptsForUser(userId).map { attempts ->
+            // Считаем средние баллы по каждой фонеме
+            val phonemeScores = attempts
+                .groupBy { it.phoneme }
+                .mapValues { (_, list) -> list.map { it.score }.average().toFloat() }
 
-    override fun getUserProgress(userId: String): Flow<UserProgress> {
-        return attemptDao.getAllByUser(userId).map { attempts ->
+            // Streak: считаем дни подряд
+            val daysSorted = attempts
+                .map { it.timestamp / 86_400_000L }  // перевод в дни
+                .distinct()
+                .sortedDescending()
+
+            var streak = 0
+            val today = System.currentTimeMillis() / 86_400_000L
+            daysSorted.forEachIndexed { i, day ->
+                if (day == today - i) streak++ else return@forEachIndexed
+            }
+
+            val totalXp     = attempts.sumOf { xpForScore(it.score) }
+            val level       = (totalXp / 500) + 1
+            val totalSessions = attempts
+                .map { it.timestamp / 86_400_000L }
+                .distinct()
+                .size
+
             UserProgress(
                 userId        = userId,
-                phonemeScores = attempts
-                    .groupBy { it.phoneme }
-                    .mapValues { (_, list) -> list.map { it.score }.average().toFloat() },
-                totalSessions = attempts.size,
-                currentStreak = 0,   // TODO: вычислять из дат
-                longestStreak = 0,
-                totalXp       = attempts.sumOf { it.score },
-                level         = attempts.sumOf { it.score } / 500 + 1,
-                achievements  = emptyList()
+                phonemeScores = phonemeScores,
+                totalSessions = totalSessions,
+                currentStreak = streak,
+                longestStreak = streak,   // TODO: хранить отдельно
+                totalXp       = totalXp,
+                level         = level,
+                achievements  = buildAchievements(phonemeScores, streak, totalXp)
             )
         }
+
+    private fun xpForScore(score: Int) = when {
+        score >= 85 -> 20
+        score >= 65 -> 15
+        score >= 45 -> 10
+        else        -> 5
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private fun ExerciseEntity.toDomain() = Exercise(
-        id         = id,
-        phoneme    = phoneme,
-        mode       = ExerciseMode.valueOf(mode),
-        content    = content,
-        difficulty = difficulty
-    )
-
-    private fun String.toMascotEmotion() = when (this) {
-        "happy"       -> MascotEmotion.HAPPY
-        "good"        -> MascotEmotion.GOOD
-        "neutral"     -> MascotEmotion.NEUTRAL
-        "supportive"  -> MascotEmotion.SUPPORTIVE
-        "celebrating" -> MascotEmotion.CELEBRATING
-        else          -> MascotEmotion.NEUTRAL
-    }
-
-    private fun defaultExercises() = listOf(
-        Exercise("1", "Р", ExerciseMode.SOUND,    "Р",     1),
-        Exercise("2", "Р", ExerciseMode.SYLLABLE, "РА",    1),
-        Exercise("3", "Р", ExerciseMode.SYLLABLE, "РО",    1),
-        Exercise("4", "Р", ExerciseMode.WORD,     "РЫБА",  2),
-        Exercise("5", "Р", ExerciseMode.WORD,     "РУКА",  2),
-        Exercise("6", "Л", ExerciseMode.SOUND,    "Л",     1),
-        Exercise("7", "Л", ExerciseMode.SYLLABLE, "ЛА",    1),
-        Exercise("8", "Л", ExerciseMode.WORD,     "ЛИСА",  2),
+    private fun buildAchievements(
+        phonemeScores: Map<String, Float>,
+        streak: Int,
+        totalXp: Int
+    ): List<Achievement> = listOf(
+        Achievement(
+            id          = "first_session",
+            title       = "Первый шаг",
+            description = "Выполни первое упражнение",
+            isUnlocked  = totalXp > 0
+        ),
+        Achievement(
+            id          = "streak_3",
+            title       = "3 дня подряд 🔥",
+            description = "Занимайся 3 дня без пропусков",
+            isUnlocked  = streak >= 3
+        ),
+        Achievement(
+            id          = "streak_7",
+            title       = "Неделя без пропусков 🏆",
+            description = "Занимайся 7 дней подряд",
+            isUnlocked  = streak >= 7
+        ),
+        Achievement(
+            id          = "master_r",
+            title       = "Мастер звука Р",
+            description = "Достигни 85% точности по звуку Р",
+            isUnlocked  = (phonemeScores["Р"] ?: 0f) >= 85f
+        ),
+        Achievement(
+            id          = "level_5",
+            title       = "Уровень 5",
+            description = "Набери 2000 XP",
+            isUnlocked  = totalXp >= 2000
+        )
     )
 }

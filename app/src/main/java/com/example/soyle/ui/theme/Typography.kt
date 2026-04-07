@@ -2,126 +2,60 @@ package com.example.soyle.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Duolingo использует очень жирные, округлые шрифты.
-// Системный шрифт Android (Roboto) с ExtraBold/Black весами даёт схожий эффект.
-// Для точного соответствия можно подключить "Feather Bold" или "DIN Round Pro".
-
-val SoyleTypography = Typography(
-
-    // Большой заголовок экрана (название игры, результат)
+// Используем встроенные шрифты — Nunito-стиль через weight
+// В реальном проекте добавить Nunito в assets/fonts/
+val KidsTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily    = FontFamily.Default,
-        fontWeight    = FontWeight.Black,
-        fontSize      = 40.sp,
-        lineHeight    = 48.sp,
-        letterSpacing = (-0.5).sp,
-        color         = DuoTextPrimary
+        fontWeight = FontWeight.Black,
+        fontSize   = 48.sp,
+        lineHeight = 56.sp,
+        letterSpacing = (-0.5).sp
     ),
-
-    // Заголовок экрана
+    displayMedium = TextStyle(
+        fontWeight = FontWeight.ExtraBold,
+        fontSize   = 36.sp,
+        lineHeight = 44.sp
+    ),
     headlineLarge = TextStyle(
-        fontFamily = FontFamily.Default,
         fontWeight = FontWeight.ExtraBold,
-        fontSize   = 24.sp,
-        lineHeight = 32.sp,
-        color      = DuoTextPrimary
+        fontSize   = 28.sp,
+        lineHeight = 36.sp
     ),
-
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize   = 20.sp,
-        lineHeight = 28.sp,
-        color      = DuoTextPrimary
-    ),
-
-    headlineSmall = TextStyle(
-        fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
-        fontSize   = 17.sp,
-        lineHeight = 24.sp,
-        color      = DuoTextPrimary
+        fontSize   = 22.sp,
+        lineHeight = 30.sp
     ),
-
-    // Кнопки
     titleLarge = TextStyle(
-        fontFamily    = FontFamily.Default,
-        fontWeight    = FontWeight.ExtraBold,
-        fontSize      = 16.sp,
-        lineHeight    = 20.sp,
-        letterSpacing = 0.5.sp,
-        color         = DuoWhite
+        fontWeight = FontWeight.ExtraBold,
+        fontSize   = 18.sp,
+        lineHeight = 26.sp
     ),
-
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
-        fontSize   = 15.sp,
-        lineHeight = 22.sp,
-        color      = DuoTextPrimary
+        fontSize   = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
     ),
-
-    titleSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize   = 13.sp,
-        lineHeight = 18.sp,
-        color      = DuoTextSecondary
-    ),
-
-    // Карточки выбора
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize   = 16.sp,
-        lineHeight = 22.sp,
-        color      = DuoTextPrimary
+        lineHeight = 24.sp
     ),
-
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
+        fontWeight = FontWeight.Medium,
+        fontSize   = 14.sp,
+        lineHeight = 20.sp
+    ),
+    labelLarge = TextStyle(
+        fontWeight = FontWeight.ExtraBold,
         fontSize   = 14.sp,
         lineHeight = 20.sp,
-        color      = DuoTextPrimary
-    ),
-
-    bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize   = 12.sp,
-        lineHeight = 16.sp,
-        color      = DuoTextSecondary
-    ),
-
-    // Лейблы, бейджи
-    labelLarge = TextStyle(
-        fontFamily    = FontFamily.Default,
-        fontWeight    = FontWeight.ExtraBold,
-        fontSize      = 14.sp,
-        lineHeight    = 18.sp,
-        letterSpacing = 0.8.sp,
-        color         = DuoWhite
-    ),
-
-    labelMedium = TextStyle(
-        fontFamily    = FontFamily.Default,
-        fontWeight    = FontWeight.Bold,
-        fontSize      = 12.sp,
-        lineHeight    = 16.sp,
         letterSpacing = 0.5.sp
-    ),
-
-    labelSmall = TextStyle(
-        fontFamily    = FontFamily.Default,
-        fontWeight    = FontWeight.SemiBold,
-        fontSize      = 10.sp,
-        lineHeight    = 14.sp,
-        letterSpacing = 0.5.sp,
-        color         = DuoTextSecondary
     )
 )
