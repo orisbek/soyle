@@ -1,0 +1,1409 @@
+From 05b8abf0534e79699f42aab48996855a84a8bbda Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Sun, 19 Apr 2026 17:10:51 +0000
+Subject: [PATCH] Redesign UI, simplify mascots, and add Firebase email auth
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+### Motivation
+- Simplify visual identity to a minimal 2–3 color system, reduce emoji clutter and keep a single mascot representation to make the UI cleaner and more consistent.
+- Remove mascot-selection flows and redundant UI choices to streamline onboarding/profile and the overall experience.
+- Gate the app behind authentication and provide an email/password sign-in flow using Firebase to support persistent user sessions.
+- Replace duplicated game shortcuts with three distinct game modes to improve gameplay variety and structure.
+
+### Description
+- Reworked theme: replaced the previous Duolingo-style palette with a compact `Primary`/`Accent`/neutral set in `ui/theme/Colors.kt` and updated `ui/theme/Theme.kt`, while keeping backward-compatible `Duo*` aliases for components.
+- Simplified UI screens: removed mascot selection and many inline emojis, updated `ProfileScreen`, `HomeScreen`, and `ExerciseScreen` to a cleaner layout and added short mode hints in `ExerciseScreen`.
+- Authentication: added `AuthRepository`, `AuthViewModel`, and `AuthScreen` and updated navigation (`NavGraph` and `Screen`) to show the auth screen when the user is not signed in; added Firebase Auth dependency to `app/build.gradle.kts`.
+- Games and domain changes: introduced `GAME_RHYTHM`, `GAME_ECHO`, and `GAME_PUZZLE` modes in `domain/model/Exercise.kt`, updated default seeded exercises in `SpeechRepositoryImpl` and replaced repetitive quick-start entries with three unique game entries on `HomeScreen`.
+
+### Testing
+- Ran `./gradlew :app:assembleDebug` in this environment but the wrapper initially failed due to permission and then failed to download the Gradle distribution because of the environment proxy (error: `Unable to tunnel through proxy ... 403 Forbidden`), so a full build could not be completed here.
+- No unit or instrumentation test suites were executed in this environment due to the build/download failure.
+- Static checks (manual inspection and small local file edits) were applied and the project changes were committed for further CI/build verification in a network-enabled environment.
+---
+ app/build.gradle.kts                          |   3 +
+ .../com/example/soyle/auth/AuthRepository.kt  |  35 +++
+ .../data/repository/SpeechRepositoryImpl.kt   |  14 +-
+ .../example/soyle/domain/model/Exercise.kt    |  27 +-
+ .../example/soyle/ui/navigation/NavGraph.kt   | 101 ++-----
+ .../com/example/soyle/ui/navigation/Screen.kt |  16 +-
+ .../soyle/ui/screens/auth/AuthScreen.kt       |  88 ++++++
+ .../soyle/ui/screens/auth/AuthViewModel.kt    |  64 +++++
+ .../ui/screens/exercise/ExerciseScreen.kt     |  22 +-
+ .../soyle/ui/screens/home/HomeScreen.kt       | 271 ++++++------------
+ .../soyle/ui/screens/home/HomeViewModel.kt    |  10 +-
+ .../soyle/ui/screens/profile/ProfileScreen.kt | 198 ++++---------
+ .../java/com/example/soyle/ui/theme/Colors.kt |  93 +++---
+ .../java/com/example/soyle/ui/theme/Theme.kt  |  47 ++-
+ gradlew                                       |   0
+ 15 files changed, 460 insertions(+), 529 deletions(-)
+ create mode 100644 app/src/main/java/com/example/soyle/auth/AuthRepository.kt
+ create mode 100644 app/src/main/java/com/example/soyle/ui/screens/auth/AuthScreen.kt
+ create mode 100644 app/src/main/java/com/example/soyle/ui/screens/auth/AuthViewModel.kt
+ mode change 100644 => 100755 gradlew
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 2c5964b..e70759d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -85,6 +85,9 @@ dependencies {
+     implementation("androidx.compose.material:material-icons-extended")
+     implementation("com.google.android.material:material:1.12.0")
+ 
++    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
++    implementation("com.google.firebase:firebase-auth-ktx")
++
+     implementation(libs.androidx.core.ktx)
+     testImplementation(libs.junit)
+     androidTestImplementation(libs.androidx.junit)
+diff --git a/app/src/main/java/com/example/soyle/auth/AuthRepository.kt b/app/src/main/java/com/example/soyle/auth/AuthRepository.kt
+new file mode 100644
+index 0000000..0a9d8e4
+--- /dev/null
++++ b/app/src/main/java/com/example/soyle/auth/AuthRepository.kt
+@@ -0,0 +1,35 @@
++package com.example.soyle.auth
++
++import com.google.firebase.auth.FirebaseAuth
++import kotlinx.coroutines.channels.awaitClose
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.callbackFlow
++import kotlinx.coroutines.tasks.await
++import javax.inject.Inject
++import javax.inject.Singleton
++
++@Singleton
++class AuthRepository @Inject constructor() {
++    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
++
++    fun observeAuthState(): Flow<Boolean> = callbackFlow {
++        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
++            trySend(firebaseAuth.currentUser != null)
++        }
++        auth.addAuthStateListener(listener)
++        trySend(auth.currentUser != null)
++        awaitClose { auth.removeAuthStateListener(listener) }
++    }
++
++    suspend fun login(email: String, password: String): Result<Unit> = runCatching {
++        auth.signInWithEmailAndPassword(email, password).await()
++    }
++
++    suspend fun register(email: String, password: String): Result<Unit> = runCatching {
++        auth.createUserWithEmailAndPassword(email, password).await()
++    }
++
++    fun logout() {
++        auth.signOut()
++    }
++}
+diff --git a/app/src/main/java/com/example/soyle/data/repository/SpeechRepositoryImpl.kt b/app/src/main/java/com/example/soyle/data/repository/SpeechRepositoryImpl.kt
+index dad4b16..bca2c20 100644
+--- a/app/src/main/java/com/example/soyle/data/repository/SpeechRepositoryImpl.kt
++++ b/app/src/main/java/com/example/soyle/data/repository/SpeechRepositoryImpl.kt
+@@ -145,13 +145,11 @@ class SpeechRepositoryImpl @Inject constructor(
+     }
+ 
+     private fun defaultExercises() = listOf(
+-        Exercise("1", "Р", ExerciseMode.SOUND,    "Р",     1),
+-        Exercise("2", "Р", ExerciseMode.SYLLABLE, "РА",    1),
+-        Exercise("3", "Р", ExerciseMode.SYLLABLE, "РО",    1),
+-        Exercise("4", "Р", ExerciseMode.WORD,     "РЫБА",  2),
+-        Exercise("5", "Р", ExerciseMode.WORD,     "РУКА",  2),
+-        Exercise("6", "Л", ExerciseMode.SOUND,    "Л",     1),
+-        Exercise("7", "Л", ExerciseMode.SYLLABLE, "ЛА",    1),
+-        Exercise("8", "Л", ExerciseMode.WORD,     "ЛИСА",  2),
++        Exercise("1", "Р", ExerciseMode.SOUND, "Р", 1),
++        Exercise("2", "Р", ExerciseMode.SYLLABLE, "РА", 1),
++        Exercise("3", "Р", ExerciseMode.WORD, "РОЗА", 2),
++        Exercise("4", "Р", ExerciseMode.GAME_RHYTHM, "РА-РО-РУ", 2),
++        Exercise("5", "Р", ExerciseMode.GAME_ECHO, "Повтори фразу", 2),
++        Exercise("6", "Р", ExerciseMode.GAME_PUZZLE, "Собери слово", 3),
+     )
+ }
+diff --git a/app/src/main/java/com/example/soyle/domain/model/Exercise.kt b/app/src/main/java/com/example/soyle/domain/model/Exercise.kt
+index c9faebc..2bc3c7f 100644
+--- a/app/src/main/java/com/example/soyle/domain/model/Exercise.kt
++++ b/app/src/main/java/com/example/soyle/domain/model/Exercise.kt
+@@ -1,18 +1,21 @@
+ package com.example.soyle.domain.model
+ 
+ data class Exercise(
+-    val id         : String,
+-    val phoneme    : String,        // "Р", "Л", "Ш"
+-    val mode       : ExerciseMode,
+-    val content    : String,        // буква / слог / слово — то что показываем ребёнку
+-    val difficulty : Int            // 1 = лёгкий, 2 = средний, 3 = сложный
++    val id: String,
++    val phoneme: String,
++    val mode: ExerciseMode,
++    val content: String,
++    val difficulty: Int
+ )
+ 
+ enum class ExerciseMode {
+-    SOUND,          // одиночный звук "Р"
+-    SYLLABLE,       // слог "РА", "ОР"
+-    WORD,           // слово "РЫБА", "ТРАВА"
+-    LISTEN_CHOOSE,  // слушай и выбирай
+-    VISUALIZE,      // визуализация волны
+-    GAME            // игровой режим
+-}
+\ No newline at end of file
++    SOUND,
++    SYLLABLE,
++    WORD,
++    LISTEN_CHOOSE,
++    VISUALIZE,
++    GAME,
++    GAME_RHYTHM,
++    GAME_ECHO,
++    GAME_PUZZLE
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/navigation/NavGraph.kt b/app/src/main/java/com/example/soyle/ui/navigation/NavGraph.kt
+index b7ff701..3f7a492 100644
+--- a/app/src/main/java/com/example/soyle/ui/navigation/NavGraph.kt
++++ b/app/src/main/java/com/example/soyle/ui/navigation/NavGraph.kt
+@@ -1,74 +1,53 @@
+ package com.example.soyle.ui.navigation
+ 
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.hilt.navigation.compose.hiltViewModel
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import androidx.navigation.NavHostController
+ import androidx.navigation.NavType
+ import androidx.navigation.compose.NavHost
+ import androidx.navigation.compose.composable
+ import androidx.navigation.compose.rememberNavController
+ import androidx.navigation.navArgument
++import com.example.soyle.ui.screens.auth.AuthScreen
++import com.example.soyle.ui.screens.auth.AuthViewModel
+ import com.example.soyle.ui.screens.exercise.ExerciseScreen
+ import com.example.soyle.ui.screens.home.HomeScreen
+-import com.example.soyle.ui.screens.onboarding.OnboardingScreen
+ import com.example.soyle.ui.screens.profile.ProfileScreen
+ import com.example.soyle.ui.screens.progress.ProgressScreen
+ import com.example.soyle.ui.screens.result.ResultScreen
+ 
+ @Composable
+-fun NavGraph(
+-    navController: NavHostController = rememberNavController()
+-) {
+-    NavHost(
+-        navController    = navController,
+-        startDestination = Screen.Home.route
+-    ) {
++fun NavGraph(navController: NavHostController = rememberNavController()) {
++    val authViewModel: AuthViewModel = hiltViewModel()
++    val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
+ 
+-        // ── Onboarding ────────────────────────────────────────────────────
+-        composable(Screen.Onboarding.route) {
+-            OnboardingScreen(
+-                onFinish = {
+-                    navController.navigate(Screen.Home.route) {
+-                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+-                    }
+-                }
+-            )
+-        }
++    if (!isLoggedIn) {
++        AuthScreen(authViewModel)
++        return
++    }
+ 
+-        // ── Home ──────────────────────────────────────────────────────────
++    NavHost(navController = navController, startDestination = Screen.Home.route) {
+         composable(Screen.Home.route) {
+             HomeScreen(
+-                onStartExercise = { phoneme, mode ->
+-                    navController.navigate(
+-                        Screen.Exercise.createRoute(phoneme, mode)
+-                    )
+-                },
+-                onOpenProgress = {
+-                    navController.navigate(Screen.Progress.route)
+-                },
+-                onOpenProfile = {
+-                    navController.navigate(Screen.Profile.route)
+-                }
++                onStartExercise = { phoneme, mode -> navController.navigate(Screen.Exercise.createRoute(phoneme, mode)) },
++                onOpenProgress = { navController.navigate(Screen.Progress.route) },
++                onOpenProfile = { navController.navigate(Screen.Profile.route) }
+             )
+         }
+ 
+-        // ── Exercise ──────────────────────────────────────────────────────
+         composable(
+             route = Screen.Exercise.route,
+-            arguments = listOf(
+-                navArgument("phoneme") { type = NavType.StringType },
+-                navArgument("mode")    { type = NavType.StringType }
+-            )
++            arguments = listOf(navArgument("phoneme") { type = NavType.StringType }, navArgument("mode") { type = NavType.StringType })
+         ) { backStack ->
+             val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
+-            val mode    = backStack.arguments?.getString("mode")    ?: "SOUND"
+-
++            val mode = backStack.arguments?.getString("mode") ?: "SOUND"
+             ExerciseScreen(
+-                phoneme  = phoneme,
+-                mode     = mode,
++                phoneme = phoneme,
++                mode = mode,
+                 onResult = { score ->
+-                    navController.navigate(
+-                        Screen.Result.createRoute(score, phoneme)
+-                    ) {
++                    navController.navigate(Screen.Result.createRoute(score, phoneme)) {
+                         popUpTo(Screen.Exercise.route) { inclusive = true }
+                     }
+                 },
+@@ -76,47 +55,25 @@ fun NavGraph(
+             )
+         }
+ 
+-        // ── Result ────────────────────────────────────────────────────────
+         composable(
+             route = Screen.Result.route,
+-            arguments = listOf(
+-                navArgument("score")   { type = NavType.IntType    },
+-                navArgument("phoneme") { type = NavType.StringType }
+-            )
++            arguments = listOf(navArgument("score") { type = NavType.IntType }, navArgument("phoneme") { type = NavType.StringType })
+         ) { backStack ->
+-            val score   = backStack.arguments?.getInt("score")      ?: 0
++            val score = backStack.arguments?.getInt("score") ?: 0
+             val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
+-
+             ResultScreen(
+-                score   = score,
++                score = score,
+                 phoneme = phoneme,
+                 onRetry = {
+-                    navController.navigate(
+-                        Screen.Exercise.createRoute(phoneme, "SOUND")
+-                    ) {
++                    navController.navigate(Screen.Exercise.createRoute(phoneme, "SOUND")) {
+                         popUpTo(Screen.Result.route) { inclusive = true }
+                     }
+                 },
+-                onHome = {
+-                    navController.navigate(Screen.Home.route) {
+-                        popUpTo(Screen.Home.route) { inclusive = false }
+-                    }
+-                }
++                onHome = { navController.navigate(Screen.Home.route) }
+             )
+         }
+ 
+-        // ── Progress ──────────────────────────────────────────────────────
+-        composable(Screen.Progress.route) {
+-            ProgressScreen(
+-                onBack = { navController.popBackStack() }
+-            )
+-        }
+-
+-        // ── Profile ───────────────────────────────────────────────────────
+-        composable(Screen.Profile.route) {
+-            ProfileScreen(
+-                onBack = { navController.popBackStack() }
+-            )
+-        }
++        composable(Screen.Progress.route) { ProgressScreen(onBack = { navController.popBackStack() }) }
++        composable(Screen.Profile.route) { ProfileScreen(onBack = { navController.popBackStack() }) }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/navigation/Screen.kt b/app/src/main/java/com/example/soyle/ui/navigation/Screen.kt
+index c77a04a..7d385f0 100644
+--- a/app/src/main/java/com/example/soyle/ui/navigation/Screen.kt
++++ b/app/src/main/java/com/example/soyle/ui/navigation/Screen.kt
+@@ -1,19 +1,17 @@
+ package com.example.soyle.ui.navigation
+ 
+ sealed class Screen(val route: String) {
+-
+-    data object Home       : Screen("home")
++    data object Auth : Screen("auth")
++    data object Home : Screen("home")
+     data object Onboarding : Screen("onboarding")
+-    data object Progress   : Screen("progress")
+-    data object Profile    : Screen("profile")
++    data object Progress : Screen("progress")
++    data object Profile : Screen("profile")
+ 
+     data object Exercise : Screen("exercise/{phoneme}/{mode}") {
+-        fun createRoute(phoneme: String, mode: String) =
+-            "exercise/$phoneme/$mode"
++        fun createRoute(phoneme: String, mode: String) = "exercise/$phoneme/$mode"
+     }
+ 
+     data object Result : Screen("result/{score}/{phoneme}") {
+-        fun createRoute(score: Int, phoneme: String) =
+-            "result/$score/$phoneme"
++        fun createRoute(score: Int, phoneme: String) = "result/$score/$phoneme"
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/auth/AuthScreen.kt b/app/src/main/java/com/example/soyle/ui/screens/auth/AuthScreen.kt
+new file mode 100644
+index 0000000..2d9a188
+--- /dev/null
++++ b/app/src/main/java/com/example/soyle/ui/screens/auth/AuthScreen.kt
+@@ -0,0 +1,88 @@
++package com.example.soyle.ui.screens.auth
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
++import androidx.hilt.navigation.compose.hiltViewModel
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import com.example.soyle.ui.components.DuoButton
++import com.example.soyle.ui.components.DuoOutlineButton
++import com.example.soyle.ui.theme.DuoBg
++import com.example.soyle.ui.theme.DuoRed
++
++@Composable
++fun AuthScreen(viewModel: AuthViewModel = hiltViewModel()) {
++    val state by viewModel.uiState.collectAsStateWithLifecycle()
++
++    Column(
++        modifier = Modifier
++            .fillMaxSize()
++            .background(DuoBg)
++            .padding(24.dp),
++        verticalArrangement = Arrangement.Center,
++        horizontalAlignment = Alignment.CenterHorizontally
++    ) {
++        Text("Soyle", fontWeight = FontWeight.ExtraBold)
++        Spacer(Modifier.height(20.dp))
++
++        OutlinedTextField(
++            value = state.email,
++            onValueChange = viewModel::onEmailChange,
++            modifier = Modifier.fillMaxWidth(),
++            label = { Text("Email") },
++            singleLine = true
++        )
++
++        Spacer(Modifier.height(12.dp))
++
++        OutlinedTextField(
++            value = state.password,
++            onValueChange = viewModel::onPasswordChange,
++            modifier = Modifier.fillMaxWidth(),
++            label = { Text("Пароль") },
++            singleLine = true
++        )
++
++        state.error?.let {
++            Spacer(Modifier.height(12.dp))
++            Text(it, color = DuoRed)
++        }
++
++        Spacer(Modifier.height(18.dp))
++
++        DuoButton(
++            text = if (state.isRegisterMode) "Зарегистрироваться" else "Войти",
++            modifier = Modifier.fillMaxWidth(),
++            enabled = !state.isLoading,
++            onClick = viewModel::submit
++        )
++
++        Spacer(Modifier.height(10.dp))
++
++        DuoOutlineButton(
++            text = if (state.isRegisterMode) "Уже есть аккаунт" else "Создать аккаунт",
++            modifier = Modifier.fillMaxWidth(),
++            enabled = !state.isLoading,
++            onClick = viewModel::toggleMode
++        )
++
++        if (state.isLoading) {
++            Spacer(Modifier.height(14.dp))
++            CircularProgressIndicator()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/auth/AuthViewModel.kt b/app/src/main/java/com/example/soyle/ui/screens/auth/AuthViewModel.kt
+new file mode 100644
+index 0000000..bfcd838
+--- /dev/null
++++ b/app/src/main/java/com/example/soyle/ui/screens/auth/AuthViewModel.kt
+@@ -0,0 +1,64 @@
++package com.example.soyle.ui.screens.auth
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import com.example.soyle.auth.AuthRepository
++import dagger.hilt.android.lifecycle.HiltViewModel
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.flow.SharingStarted
++import kotlinx.coroutines.launch
++import javax.inject.Inject
++
++data class AuthFormState(
++    val email: String = "",
++    val password: String = "",
++    val isRegisterMode: Boolean = false,
++    val isLoading: Boolean = false,
++    val error: String? = null
++)
++
++@HiltViewModel
++class AuthViewModel @Inject constructor(
++    private val authRepository: AuthRepository
++) : ViewModel() {
++
++    val isLoggedIn: StateFlow<Boolean> = authRepository.observeAuthState().stateIn(
++        scope = viewModelScope,
++        started = SharingStarted.WhileSubscribed(5_000),
++        initialValue = false
++    )
++
++    private val _uiState = MutableStateFlow(AuthFormState())
++    val uiState = _uiState.asStateFlow()
++
++    fun onEmailChange(value: String) = _uiState.tryEmit(_uiState.value.copy(email = value, error = null))
++    fun onPasswordChange(value: String) = _uiState.tryEmit(_uiState.value.copy(password = value, error = null))
++    fun toggleMode() = _uiState.tryEmit(_uiState.value.copy(isRegisterMode = !_uiState.value.isRegisterMode, error = null))
++
++    fun submit() {
++        val state = _uiState.value
++        if (state.email.isBlank() || state.password.length < 6) {
++            _uiState.tryEmit(state.copy(error = "Введите корректный email и пароль не короче 6 символов"))
++            return
++        }
++
++        viewModelScope.launch {
++            _uiState.emit(state.copy(isLoading = true, error = null))
++            val result = if (state.isRegisterMode) {
++                authRepository.register(state.email.trim(), state.password)
++            } else {
++                authRepository.login(state.email.trim(), state.password)
++            }
++
++            _uiState.emit(
++                _uiState.value.copy(
++                    isLoading = false,
++                    error = result.exceptionOrNull()?.localizedMessage
++                )
++            )
++        }
++    }
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/exercise/ExerciseScreen.kt b/app/src/main/java/com/example/soyle/ui/screens/exercise/ExerciseScreen.kt
+index 549537a..e8eebdf 100644
+--- a/app/src/main/java/com/example/soyle/ui/screens/exercise/ExerciseScreen.kt
++++ b/app/src/main/java/com/example/soyle/ui/screens/exercise/ExerciseScreen.kt
+@@ -80,11 +80,11 @@ fun ExerciseScreen(
+             // Маскот с подсказкой
+             AnimatedContent(targetState = uiState, label = "mascot") { state ->
+                 val mascotText = when (state) {
+-                    is ExerciseUiState.Idle      -> "Скажи звук «$phoneme»! 🎙"
++                    is ExerciseUiState.Idle      -> "Произнеси звук «$phoneme»"
+                     is ExerciseUiState.Recording -> "Слушаю... говори!"
+                     is ExerciseUiState.Analyzing -> "Анализирую произношение..."
+                     is ExerciseUiState.Success   -> state.feedback
+-                    is ExerciseUiState.Error     -> "Что-то пошло не так 😅"
++                    is ExerciseUiState.Error     -> "Что-то пошло не так"
+                 }
+                 DuoMascotSpeech(text = mascotText)
+             }
+@@ -97,6 +97,17 @@ fun ExerciseScreen(
+                 color      = DuoGreen
+             )
+ 
++            Text(
++                text = when (exerciseMode) {
++                    ExerciseMode.GAME_RHYTHM -> "Игра: держите ритм произношения"
++                    ExerciseMode.GAME_ECHO -> "Игра: повторите фразу без пауз"
++                    ExerciseMode.GAME_PUZZLE -> "Игра: соберите слово по слогам"
++                    else -> "Тренировка произношения"
++                },
++                fontSize = 14.sp,
++                color = DuoTextSecondary
++            )
++
+             // ── Центральная зона ───────────────────────────────────────────
+             AnimatedContent(targetState = uiState, label = "content") { state ->
+                 when (state) {
+@@ -112,8 +123,7 @@ fun ExerciseScreen(
+                             horizontalAlignment = Alignment.CenterHorizontally,
+                             verticalArrangement = Arrangement.spacedBy(12.dp)
+                         ) {
+-                            Text("🎙", fontSize = 40.sp)
+-                            LinearProgressIndicator(
++                                                        LinearProgressIndicator(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 color    = DuoRed,
+                                 trackColor = DuoRedLight
+@@ -143,7 +153,7 @@ fun ExerciseScreen(
+                             horizontalAlignment = Alignment.CenterHorizontally,
+                             verticalArrangement = Arrangement.spacedBy(8.dp)
+                         ) {
+-                            Text("⚠️ ${state.message}", color = DuoRed, fontSize = 14.sp)
++                            Text(state.message, color = DuoRed, fontSize = 14.sp)
+                             TextButton(onClick = { viewModel.reset() }) {
+                                 Text("Попробовать снова", color = DuoGreen, fontWeight = FontWeight.Bold)
+                             }
+@@ -157,7 +167,7 @@ fun ExerciseScreen(
+         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+             if (!hasMicPermission) {
+                 DuoButton(
+-                    text    = "РАЗРЕШИТЬ МИКРОФОН 🎙",
++                    text    = "Разрешить микрофон",
+                     modifier = Modifier.fillMaxWidth(),
+                     onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+                 )
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/home/HomeScreen.kt b/app/src/main/java/com/example/soyle/ui/screens/home/HomeScreen.kt
+index 53d06b5..d8c4392 100644
+--- a/app/src/main/java/com/example/soyle/ui/screens/home/HomeScreen.kt
++++ b/app/src/main/java/com/example/soyle/ui/screens/home/HomeScreen.kt
+@@ -1,18 +1,41 @@
+ package com.example.soyle.ui.screens.home
+ 
+-import androidx.compose.foundation.*
+-import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.shape.CircleShape
+-import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.filled.*
+-import androidx.compose.material3.*
+-import androidx.compose.runtime.*
++import androidx.compose.material.icons.filled.BarChart
++import androidx.compose.material.icons.filled.Home
++import androidx.compose.material.icons.filled.Person
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.Icon
++import androidx.compose.material3.NavigationBar
++import androidx.compose.material3.NavigationBarItem
++import androidx.compose.material3.NavigationBarItemDefaults
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+@@ -20,254 +43,122 @@ import androidx.compose.ui.unit.sp
+ import androidx.hilt.navigation.compose.hiltViewModel
+ import com.example.soyle.domain.model.Exercise
+ import com.example.soyle.domain.model.ExerciseMode
+-import com.example.soyle.ui.components.*
++import com.example.soyle.ui.components.DuoChoiceCard
++import com.example.soyle.ui.components.DuoMascotSpeech
++import com.example.soyle.ui.components.DuoProgressBar
++import com.example.soyle.ui.components.DuoSectionHeader
++import com.example.soyle.ui.components.DuoLevelBadge
++import com.example.soyle.ui.components.DuoStreakBadge
++import com.example.soyle.ui.components.DuoXpBadge
+ import com.example.soyle.ui.theme.*
+ 
+ @Composable
+ fun HomeScreen(
+-    onStartExercise : (phoneme: String, mode: String) -> Unit,
+-    onOpenProgress  : () -> Unit,
+-    onOpenProfile   : () -> Unit,
+-    viewModel       : HomeViewModel = hiltViewModel()
++    onStartExercise: (phoneme: String, mode: String) -> Unit,
++    onOpenProgress: () -> Unit,
++    onOpenProfile: () -> Unit,
++    viewModel: HomeViewModel = hiltViewModel()
+ ) {
+     val uiState by viewModel.uiState.collectAsState()
+ 
+     Scaffold(
+         containerColor = DuoBg,
+         bottomBar = {
+-            NavigationBar(
+-                containerColor = DuoWhite,
+-                tonalElevation = 0.dp
+-            ) {
+-                NavigationBarItem(
+-                    selected = true,
+-                    onClick  = {},
+-                    icon     = { Icon(Icons.Default.Home, null) },
+-                    label    = { Text("Главная", fontWeight = FontWeight.Bold) },
+-                    colors   = NavigationBarItemDefaults.colors(
+-                        indicatorColor = DuoGreenLight,
+-                        selectedIconColor = DuoGreen
+-                    )
+-                )
+-                NavigationBarItem(
+-                    selected = false,
+-                    onClick  = onOpenProgress,
+-                    icon     = { Icon(Icons.Default.BarChart, null) },
+-                    label    = { Text("Прогресс") }
+-                )
+-                NavigationBarItem(
+-                    selected = false,
+-                    onClick  = onOpenProfile,
+-                    icon     = { Icon(Icons.Default.Person, null) },
+-                    label    = { Text("Профиль") }
+-                )
++            NavigationBar(containerColor = DuoWhite, tonalElevation = 0.dp) {
++                NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Главная") }, colors = NavigationBarItemDefaults.colors(indicatorColor = DuoGreenLight, selectedIconColor = DuoGreen))
++                NavigationBarItem(selected = false, onClick = onOpenProgress, icon = { Icon(Icons.Default.BarChart, null) }, label = { Text("Прогресс") })
++                NavigationBarItem(selected = false, onClick = onOpenProfile, icon = { Icon(Icons.Default.Person, null) }, label = { Text("Профиль") })
+             }
+         }
+     ) { padding ->
+         Column(
+-            modifier = Modifier
+-                .fillMaxSize()
+-                .padding(padding)
+-                .verticalScroll(rememberScrollState())
++            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+         ) {
+-            // ── Шапка ─────────────────────────────────────────────────────
+-            HomeTopBar(
+-                streak   = uiState.currentStreak,
+-                xp       = uiState.totalXp,
+-                level    = uiState.level,
+-                onProfile = onOpenProfile
+-            )
+-
+-            Column(
+-                modifier            = Modifier.padding(horizontal = 20.dp),
+-                verticalArrangement = Arrangement.spacedBy(24.dp)
+-            ) {
++            HomeTopBar(uiState.currentStreak, uiState.totalXp, uiState.level)
++            Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                 Spacer(Modifier.height(4.dp))
+-
+-                // ── Маскот-приветствие ─────────────────────────────────────
+-                DuoMascotSpeech(text = uiState.greeting)
+-
+-                // ── Дневная цель ───────────────────────────────────────────
++                DuoMascotSpeech(text = uiState.greeting, mascotEmoji = "S")
+                 DailyGoalCard(done = uiState.todayDone, total = uiState.todayTotal)
+ 
+-                // ── Сегодняшние упражнения ─────────────────────────────────
+                 DuoSectionHeader(title = "Сегодняшние упражнения")
+-
+                 if (uiState.isLoading) {
+-                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
+-                        CircularProgressIndicator(color = DuoGreen)
+-                    }
++                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) { CircularProgressIndicator(color = DuoGreen) }
+                 } else {
+-                    LazyRow(
+-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+-                        contentPadding        = PaddingValues(end = 4.dp)
+-                    ) {
++                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 4.dp)) {
+                         items(uiState.exercises.take(6)) { exercise ->
+-                            ExerciseCard(
+-                                exercise = exercise,
+-                                onClick  = { onStartExercise(exercise.phoneme, exercise.mode.name) }
+-                            )
++                            ExerciseCard(exercise = exercise, onClick = { onStartExercise(exercise.phoneme, exercise.mode.name) })
+                         }
+                     }
+                 }
+ 
+-                // ── Быстрый старт ──────────────────────────────────────────
+-                DuoSectionHeader(title = "Все режимы")
+-                QuickStartList(onStartExercise = onStartExercise)
+-
++                DuoSectionHeader(title = "Игры")
++                QuickStartList(onStartExercise)
+                 Spacer(Modifier.height(8.dp))
+             }
+         }
+     }
+ }
+ 
+-// ── Шапка ─────────────────────────────────────────────────────────────────────
+-
+ @Composable
+-private fun HomeTopBar(
+-    streak   : Int,
+-    xp       : Int,
+-    level    : Int,
+-    onProfile: () -> Unit
+-) {
+-    Row(
+-        modifier              = Modifier
+-            .fillMaxWidth()
+-            .background(DuoWhite)
+-            .padding(horizontal = 20.dp, vertical = 12.dp),
+-        verticalAlignment     = Alignment.CenterVertically,
+-        horizontalArrangement = Arrangement.SpaceBetween
+-    ) {
+-        // Логотип / название
+-        Text(
+-            text       = "Söyle",
+-            fontWeight = FontWeight.Black,
+-            fontSize   = 22.sp,
+-            color      = DuoGreen
+-        )
+-
+-        Row(
+-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+-            verticalAlignment     = Alignment.CenterVertically
+-        ) {
+-            DuoStreakBadge(streak = streak)
+-            DuoXpBadge(xp = xp)
+-            DuoLevelBadge(level = level)
++private fun HomeTopBar(streak: Int, xp: Int, level: Int) {
++    Row(modifier = Modifier.fillMaxWidth().background(DuoWhite).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
++        Text("Soyle", fontWeight = FontWeight.Black, fontSize = 22.sp, color = DuoGreen)
++        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
++            DuoStreakBadge(streak)
++            DuoXpBadge(xp)
++            DuoLevelBadge(level)
+         }
+     }
+     HorizontalDivider(color = DuoBorder, thickness = 1.dp)
+ }
+ 
+-// ── Дневная цель ──────────────────────────────────────────────────────────────
+-
+ @Composable
+ private fun DailyGoalCard(done: Int, total: Int) {
+     val progress = if (total > 0) done.toFloat() / total else 0f
+-
+     Column(
+-        modifier = Modifier
+-            .fillMaxWidth()
+-            .background(DuoGreenPale, RoundedCornerShape(16.dp))
+-            .border(2.dp, DuoGreenLight, RoundedCornerShape(16.dp))
+-            .padding(16.dp),
++        modifier = Modifier.fillMaxWidth().background(DuoGreenPale, RoundedCornerShape(16.dp)).border(2.dp, DuoGreenLight, RoundedCornerShape(16.dp)).padding(16.dp),
+         verticalArrangement = Arrangement.spacedBy(8.dp)
+     ) {
+-        Row(
+-            modifier              = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.SpaceBetween,
+-            verticalAlignment     = Alignment.CenterVertically
+-        ) {
+-            Row(verticalAlignment = Alignment.CenterVertically) {
+-                Text("🎯", fontSize = 20.sp)
+-                Spacer(Modifier.width(8.dp))
+-                Text(
+-                    text       = "Дневная цель",
+-                    fontWeight = FontWeight.ExtraBold,
+-                    fontSize   = 15.sp,
+-                    color      = DuoTextPrimary
+-                )
+-            }
+-            Text(
+-                text       = "$done / $total упражнений",
+-                fontWeight = FontWeight.Bold,
+-                fontSize   = 13.sp,
+-                color      = DuoGreen
+-            )
++        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++            Text("Дневная цель", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = DuoTextPrimary)
++            Text("$done / $total", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DuoGreen)
+         }
+         DuoProgressBar(progress = progress)
+     }
+ }
+ 
+-// ── Карточка упражнения ───────────────────────────────────────────────────────
+-
+ @Composable
+ private fun ExerciseCard(exercise: Exercise, onClick: () -> Unit) {
+     Column(
+-        modifier = Modifier
+-            .width(100.dp)
+-            .clip(RoundedCornerShape(16.dp))
+-            .border(2.dp, DuoBorder, RoundedCornerShape(16.dp))
+-            .background(DuoWhite)
+-            .clickable { onClick() }
+-            .padding(12.dp),
++        modifier = Modifier.width(120.dp).border(2.dp, DuoBorder, RoundedCornerShape(16.dp)).background(DuoWhite, RoundedCornerShape(16.dp)).clickable { onClick() }.padding(12.dp),
+         horizontalAlignment = Alignment.CenterHorizontally,
+         verticalArrangement = Arrangement.spacedBy(8.dp)
+     ) {
+-        Text(modeEmoji(exercise.mode), fontSize = 28.sp)
+-        Text(
+-            text       = exercise.content,
+-            fontWeight = FontWeight.Black,
+-            fontSize   = 20.sp,
+-            color      = DuoGreen
+-        )
+-        Text(
+-            text     = modeLabel(exercise.mode),
+-            fontSize = 10.sp,
+-            color    = DuoTextSecondary,
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis
+-        )
++        Text(modeLabel(exercise.mode), fontWeight = FontWeight.Bold, color = DuoTextSecondary, fontSize = 11.sp)
++        Text(text = exercise.content, fontWeight = FontWeight.Black, fontSize = 20.sp, color = DuoGreen)
++        Text(text = "Сложность ${exercise.difficulty}", fontSize = 10.sp, color = DuoTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+     }
+ }
+ 
+-// ── Список режимов ────────────────────────────────────────────────────────────
+-
+ @Composable
+ private fun QuickStartList(onStartExercise: (String, String) -> Unit) {
+     val modes = listOf(
+-        Triple(ExerciseMode.SOUND,        "Звук «Р»",    "🔤"),
+-        Triple(ExerciseMode.SYLLABLE,     "Слоги с Р",   "📝"),
+-        Triple(ExerciseMode.WORD,         "Слова с Р",   "🗣️"),
+-        Triple(ExerciseMode.LISTEN_CHOOSE,"Слушай",       "👂"),
+-        Triple(ExerciseMode.VISUALIZE,    "Визуализация", "📊"),
+-        Triple(ExerciseMode.GAME,         "Игра",         "🎮"),
++        ExerciseMode.GAME_RHYTHM to "Ритм-слоги",
++        ExerciseMode.GAME_ECHO to "Эхо-фразы",
++        ExerciseMode.GAME_PUZZLE to "Слово-пазл"
+     )
+     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+-        modes.forEach { (mode, label, emoji) ->
+-            DuoChoiceCard(
+-                text     = label,
+-                emoji    = emoji,
+-                modifier = Modifier.fillMaxWidth(),
+-                onClick  = { onStartExercise("Р", mode.name) }
+-            )
++        modes.forEach { (mode, label) ->
++            DuoChoiceCard(text = label, modifier = Modifier.fillMaxWidth(), onClick = { onStartExercise("Р", mode.name) })
+         }
+     }
+ }
+ 
+-private fun modeEmoji(mode: ExerciseMode) = when (mode) {
+-    ExerciseMode.SOUND         -> "🔤"
+-    ExerciseMode.SYLLABLE      -> "📝"
+-    ExerciseMode.WORD          -> "🗣️"
+-    ExerciseMode.LISTEN_CHOOSE -> "👂"
+-    ExerciseMode.VISUALIZE     -> "📊"
+-    ExerciseMode.GAME          -> "🎮"
+-}
+-
+ private fun modeLabel(mode: ExerciseMode) = when (mode) {
+-    ExerciseMode.SOUND         -> "Звук"
+-    ExerciseMode.SYLLABLE      -> "Слог"
+-    ExerciseMode.WORD          -> "Слово"
++    ExerciseMode.SOUND -> "Звук"
++    ExerciseMode.SYLLABLE -> "Слог"
++    ExerciseMode.WORD -> "Слово"
+     ExerciseMode.LISTEN_CHOOSE -> "Слушай"
+-    ExerciseMode.VISUALIZE     -> "Волна"
+-    ExerciseMode.GAME          -> "Игра"
+-}
+\ No newline at end of file
++    ExerciseMode.VISUALIZE -> "Ритм"
++    ExerciseMode.GAME, ExerciseMode.GAME_RHYTHM, ExerciseMode.GAME_ECHO, ExerciseMode.GAME_PUZZLE -> "Игра"
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/home/HomeViewModel.kt b/app/src/main/java/com/example/soyle/ui/screens/home/HomeViewModel.kt
+index 8a06806..bc1cee5 100644
+--- a/app/src/main/java/com/example/soyle/ui/screens/home/HomeViewModel.kt
++++ b/app/src/main/java/com/example/soyle/ui/screens/home/HomeViewModel.kt
+@@ -30,7 +30,7 @@ data class HomeUiState(
+     val exercises        : List<Exercise> = emptyList(),
+     val todayDone        : Int            = 0,
+     val todayTotal       : Int            = 5,
+-    val greeting         : String         = "Привет! 👋",
++    val greeting         : String         = "Добро пожаловать",
+     val error            : String?        = null
+ )
+ 
+@@ -105,10 +105,10 @@ class HomeViewModel @Inject constructor(
+             else      -> "Добрый вечер"
+         }
+         return when {
+-            progress.currentStreak >= 7 -> "$timeGreeting! 🔥 Ты огонь — ${progress.currentStreak} дней подряд!"
+-            progress.currentStreak >= 3 -> "$timeGreeting! 💪 Уже ${progress.currentStreak} дня подряд!"
+-            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало! 🌟"
+-            else                        -> "$timeGreeting! Пора тренироваться! 🦉"
++            progress.currentStreak >= 7 -> "$timeGreeting! Отличный ритм: ${progress.currentStreak} дней подряд."
++            progress.currentStreak >= 3 -> "$timeGreeting! Уже ${progress.currentStreak} дня подряд."
++            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало."
++            else                        -> "$timeGreeting! Пора тренироваться."
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/example/soyle/ui/screens/profile/ProfileScreen.kt b/app/src/main/java/com/example/soyle/ui/screens/profile/ProfileScreen.kt
+index 070e4bf..0a13bc8 100644
+--- a/app/src/main/java/com/example/soyle/ui/screens/profile/ProfileScreen.kt
++++ b/app/src/main/java/com/example/soyle/ui/screens/profile/ProfileScreen.kt
+@@ -1,81 +1,79 @@
+ package com.example.soyle.ui.screens.profile
+ 
+-import androidx.compose.foundation.*
+-import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.filled.ArrowBack
+-import androidx.compose.material3.*
+-import androidx.compose.runtime.*
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.material3.Scaffold
++import androidx.compose.material3.Switch
++import androidx.compose.material3.SwitchDefaults
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarDefaults
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+-import com.example.soyle.ui.components.*
++import com.example.soyle.ui.components.DuoLevelBadge
++import com.example.soyle.ui.components.DuoProgressBar
++import com.example.soyle.ui.components.DuoSectionHeader
+ import com.example.soyle.ui.theme.*
+ 
+-@OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun ProfileScreen(onBack: () -> Unit) {
+-    val level         = 4
+-    val totalXp       = 1820
+-    val xpInLevel     = totalXp % 500
+-    val currentStreak = 3
+-    val longestStreak = 7
++    val level = 4
++    val totalXp = 1820
++    val xpInLevel = totalXp % 500
+ 
+     Scaffold(
+         containerColor = DuoBg,
+         topBar = {
+             TopAppBar(
+                 title = { Text("Профиль", fontWeight = FontWeight.ExtraBold) },
+-                navigationIcon = {
+-                    IconButton(onClick = onBack) {
+-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад")
+-                    }
+-                },
++                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
+                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DuoWhite)
+             )
+         }
+     ) { padding ->
+         Column(
+-            modifier = Modifier
+-                .fillMaxSize()
+-                .padding(padding)
+-                .verticalScroll(rememberScrollState())
+-                .padding(horizontal = 20.dp),
++            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+             verticalArrangement = Arrangement.spacedBy(16.dp)
+         ) {
+             Spacer(Modifier.height(4.dp))
+-
+-            // ── Аватар + уровень ───────────────────────────────────────────
+             Column(
+-                modifier            = Modifier
+-                    .fillMaxWidth()
+-                    .border(2.dp, DuoBorder, RoundedCornerShape(20.dp))
+-                    .background(DuoWhite, RoundedCornerShape(20.dp))
+-                    .padding(24.dp),
++                modifier = Modifier.fillMaxWidth().border(2.dp, DuoBorder, RoundedCornerShape(20.dp)).background(DuoWhite, RoundedCornerShape(20.dp)).padding(24.dp),
+                 horizontalAlignment = Alignment.CenterHorizontally,
+                 verticalArrangement = Arrangement.spacedBy(12.dp)
+             ) {
+-                Box(
+-                    modifier = Modifier
+-                        .size(80.dp)
+-                        .background(DuoGreenLight, CircleShape),
+-                    contentAlignment = Alignment.Center
+-                ) {
+-                    Text("🦉", fontSize = 44.sp)
++                Box(modifier = Modifier.size(80.dp).background(DuoGreenLight, CircleShape), contentAlignment = Alignment.Center) {
++                    Text("S", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = DuoGreen)
+                 }
+-                Text("Малыш", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = DuoTextPrimary)
+-                DuoLevelBadge(level = level)
+-
+-                // XP бар
++                Text("Пользователь", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = DuoTextPrimary)
++                DuoLevelBadge(level)
+                 Column(modifier = Modifier.fillMaxWidth()) {
+-                    Row(
+-                        modifier              = Modifier.fillMaxWidth(),
+-                        horizontalArrangement = Arrangement.SpaceBetween
+-                    ) {
++                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                         Text("$xpInLevel XP", fontSize = 12.sp, color = DuoTextSecondary)
+                         Text("500 XP", fontSize = 12.sp, color = DuoTextSecondary)
+                     }
+@@ -84,127 +82,29 @@ fun ProfileScreen(onBack: () -> Unit) {
+                 }
+             }
+ 
+-            // ── Streak ─────────────────────────────────────────────────────
+-            DuoSectionHeader("Серия дней")
+-            Row(
+-                modifier              = Modifier.fillMaxWidth(),
+-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+-            ) {
+-                StreakTile("🔥", "$currentStreak", "Текущая серия", Modifier.weight(1f))
+-                StreakTile("🏆", "$longestStreak", "Рекорд",        Modifier.weight(1f))
+-                StreakTile("⭐", "${7 - currentStreak % 7}", "До награды", Modifier.weight(1f))
+-            }
+-
+-            // ── Маскоты ────────────────────────────────────────────────────
+-            DuoSectionHeader("Маскоты")
+-            MascotRow(currentLevel = level)
+-
+-            // ── Настройки ──────────────────────────────────────────────────
+             DuoSectionHeader("Настройки")
+             SettingsCard()
+-
+             Spacer(Modifier.height(8.dp))
+         }
+     }
+ }
+ 
+-@Composable
+-private fun StreakTile(emoji: String, value: String, label: String, modifier: Modifier) {
+-    Column(
+-        modifier            = modifier
+-            .border(2.dp, DuoBorder, RoundedCornerShape(16.dp))
+-            .background(DuoWhite, RoundedCornerShape(16.dp))
+-            .padding(12.dp),
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        Text(emoji, fontSize = 24.sp)
+-        Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = DuoTextPrimary)
+-        Text(label, fontSize = 10.sp, color = DuoTextSecondary)
+-    }
+-}
+-
+-@Composable
+-private fun MascotRow(currentLevel: Int) {
+-    val mascots = listOf("🦉" to 1, "🐻" to 3, "🐸" to 5, "🦊" to 8, "🐉" to 15)
+-    Row(
+-        modifier              = Modifier
+-            .fillMaxWidth()
+-            .border(2.dp, DuoBorder, RoundedCornerShape(16.dp))
+-            .background(DuoWhite, RoundedCornerShape(16.dp))
+-            .padding(16.dp),
+-        horizontalArrangement = Arrangement.SpaceAround
+-    ) {
+-        mascots.forEach { (emoji, req) ->
+-            val unlocked = currentLevel >= req
+-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+-                Box(
+-                    modifier = Modifier
+-                        .size(52.dp)
+-                        .background(
+-                            if (unlocked) DuoGreenLight else DuoGrayLight,
+-                            CircleShape
+-                        )
+-                        .then(if (emoji == "🦉") Modifier.border(2.dp, DuoGreen, CircleShape) else Modifier),
+-                    contentAlignment = Alignment.Center
+-                ) {
+-                    Text(emoji, fontSize = 26.sp)
+-                }
+-                Spacer(Modifier.height(4.dp))
+-                Text(
+-                    text  = if (unlocked) "✓" else "Ур.$req",
+-                    fontSize = 10.sp,
+-                    color    = if (unlocked) DuoGreen else DuoGray
+-                )
+-            }
+-        }
+-    }
+-}
+-
+ @Composable
+ private fun SettingsCard() {
+     var notif by remember { mutableStateOf(true) }
+     var sound by remember { mutableStateOf(true) }
+ 
+     Column(
+-        modifier = Modifier
+-            .fillMaxWidth()
+-            .border(2.dp, DuoBorder, RoundedCornerShape(16.dp))
+-            .background(DuoWhite, RoundedCornerShape(16.dp))
+-            .padding(16.dp),
++        modifier = Modifier.fillMaxWidth().border(2.dp, DuoBorder, RoundedCornerShape(16.dp)).background(DuoWhite, RoundedCornerShape(16.dp)).padding(16.dp),
+         verticalArrangement = Arrangement.spacedBy(4.dp)
+     ) {
+-        Row(
+-            modifier              = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.SpaceBetween,
+-            verticalAlignment     = Alignment.CenterVertically
+-        ) {
+-            Row(verticalAlignment = Alignment.CenterVertically) {
+-                Text("🔔", fontSize = 18.sp)
+-                Spacer(Modifier.width(10.dp))
+-                Text("Напоминания", fontWeight = FontWeight.SemiBold, color = DuoTextPrimary)
+-            }
+-            Switch(
+-                checked         = notif,
+-                onCheckedChange = { notif = it },
+-                colors          = SwitchDefaults.colors(checkedThumbColor = DuoGreen, checkedTrackColor = DuoGreenLight)
+-            )
++        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++            Text("Напоминания", fontWeight = FontWeight.SemiBold, color = DuoTextPrimary)
++            Switch(checked = notif, onCheckedChange = { notif = it }, colors = SwitchDefaults.colors(checkedThumbColor = DuoGreen, checkedTrackColor = DuoGreenLight))
+         }
+-        HorizontalDivider(color = DuoBorder)
+-        Row(
+-            modifier              = Modifier.fillMaxWidth(),
+-            horizontalArrangement = Arrangement.SpaceBetween,
+-            verticalAlignment     = Alignment.CenterVertically
+-        ) {
+-            Row(verticalAlignment = Alignment.CenterVertically) {
+-                Text("🔊", fontSize = 18.sp)
+-                Spacer(Modifier.width(10.dp))
+-                Text("Звуки", fontWeight = FontWeight.SemiBold, color = DuoTextPrimary)
+-            }
+-            Switch(
+-                checked         = sound,
+-                onCheckedChange = { sound = it },
+-                colors          = SwitchDefaults.colors(checkedThumbColor = DuoGreen, checkedTrackColor = DuoGreenLight)
+-            )
++        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
++            Text("Звуки", fontWeight = FontWeight.SemiBold, color = DuoTextPrimary)
++            Switch(checked = sound, onCheckedChange = { sound = it }, colors = SwitchDefaults.colors(checkedThumbColor = DuoGreen, checkedTrackColor = DuoGreenLight))
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/src/main/java/com/example/soyle/ui/theme/Colors.kt b/app/src/main/java/com/example/soyle/ui/theme/Colors.kt
+index 94ffcae..26f2e66 100644
+--- a/app/src/main/java/com/example/soyle/ui/theme/Colors.kt
++++ b/app/src/main/java/com/example/soyle/ui/theme/Colors.kt
+@@ -2,57 +2,52 @@ package com.example.soyle.ui.theme
+ 
+ import androidx.compose.ui.graphics.Color
+ 
+-// ── Основная палитра (Duolingo-style) ─────────────────────────────────────────
+-val DuoGreen         = Color(0xFF58CC02)   // основной зелёный — кнопки, акценты
+-val DuoGreenDark     = Color(0xFF46A302)   // тень под кнопкой
+-val DuoGreenLight    = Color(0xFFD7FFB8)   // светлый фон выделения
+-val DuoGreenPale     = Color(0xFFF0FFF0)   // очень светлый фон
++val Primary = Color(0xFF2E7D32)
++val PrimaryDark = Color(0xFF1B5E20)
++val Accent = Color(0xFF1565C0)
++val Background = Color(0xFFF7F9FC)
++val Surface = Color(0xFFFFFFFF)
++val Border = Color(0xFFDDE3EC)
++val TextPrimary = Color(0xFF1F2937)
++val TextSecondary = Color(0xFF6B7280)
++val Error = Color(0xFFB3261E)
+ 
+-val DuoBlue          = Color(0xFF1CB0F6)   // вторичный — выделение выбранного
+-val DuoBlueDark      = Color(0xFF0A91D5)
+-val DuoBlueLight     = Color(0xFFDDF4FF)   // фон выбранной карточки
+-
+-val DuoRed           = Color(0xFFFF4B4B)   // ошибки, жизни
+-val DuoRedLight      = Color(0xFFFFE0E0)
+-
+-val DuoYellow        = Color(0xFFFFC800)   // streak, XP, достижения
+-val DuoYellowLight   = Color(0xFFFFF3CC)
+-val DuoOrange        = Color(0xFFFF9600)   // предупреждение
+-
+-val DuoPurple        = Color(0xFFCE82FF)   // редкие акценты
+-
+-// ── Нейтральные ───────────────────────────────────────────────────────────────
+-val DuoWhite         = Color(0xFFFFFFFF)
+-val DuoBg            = Color(0xFFFFFFFF)   // фон экранов — чисто белый
+-val DuoCardBg        = Color(0xFFFFFFFF)
+-
+-val DuoBorder        = Color(0xFFE5E5E5)   // граница карточек
+-val DuoBorderSelected = Color(0xFF84D8FF)  // граница выбранной карточки
+-
+-val DuoGray          = Color(0xFFAFB7C3)   // неактивный текст
+-val DuoGrayLight     = Color(0xFFE5E5E5)   // неактивная кнопка фон
+-val DuoGrayDark      = Color(0xFF777777)
+-
+-val DuoTextPrimary   = Color(0xFF3C3C3C)   // основной текст
+-val DuoTextSecondary = Color(0xFF777777)
+-val DuoTextDisabled  = Color(0xFFAFB7C3)
+-
+-// ── Прогресс-бар ──────────────────────────────────────────────────────────────
+-val DuoProgressBg    = Color(0xFFE5E5E5)
+-val DuoProgressFill  = DuoGreen
+-
+-// ── Score цвета ───────────────────────────────────────────────────────────────
+ fun scoreColor(score: Int): Color = when {
+-    score >= 85 -> DuoGreen
+-    score >= 65 -> DuoYellow
+-    score >= 45 -> DuoOrange
+-    else        -> DuoRed
++    score >= 85 -> Primary
++    score >= 65 -> Accent
++    else -> Error
+ }
+ 
+ fun levelColor(level: Int): Color = when {
+-    level >= 20 -> DuoPurple
+-    level >= 15 -> DuoBlue
+-    level >= 10 -> DuoYellow
+-    level >= 5  -> DuoGreen
+-    else        -> DuoGray
+-}
+\ No newline at end of file
++    level >= 10 -> Accent
++    level >= 5 -> Primary
++    else -> TextSecondary
++}
++
++// Backward-compatible aliases
++val DuoGreen = Primary
++val DuoGreenDark = PrimaryDark
++val DuoGreenLight = Primary
++val DuoGreenPale = Background
++val DuoBlue = Accent
++val DuoBlueDark = Accent
++val DuoBlueLight = Background
++val DuoRed = Error
++val DuoRedLight = Error.copy(alpha = 0.15f)
++val DuoYellow = Accent
++val DuoYellowLight = Background
++val DuoOrange = Accent
++val DuoPurple = Accent
++val DuoWhite = Surface
++val DuoBg = Background
++val DuoCardBg = Surface
++val DuoBorder = Border
++val DuoBorderSelected = Accent
++val DuoGray = TextSecondary
++val DuoGrayLight = Border
++val DuoGrayDark = TextSecondary
++val DuoTextPrimary = TextPrimary
++val DuoTextSecondary = TextSecondary
++val DuoTextDisabled = TextSecondary
++val DuoProgressBg = Border
++val DuoProgressFill = Primary
+diff --git a/app/src/main/java/com/example/soyle/ui/theme/Theme.kt b/app/src/main/java/com/example/soyle/ui/theme/Theme.kt
+index e262958..e2a353e 100644
+--- a/app/src/main/java/com/example/soyle/ui/theme/Theme.kt
++++ b/app/src/main/java/com/example/soyle/ui/theme/Theme.kt
+@@ -5,39 +5,28 @@ import androidx.compose.material3.lightColorScheme
+ import androidx.compose.runtime.Composable
+ 
+ private val SoyleLightColors = lightColorScheme(
+-    primary            = DuoGreen,
+-    onPrimary          = DuoWhite,
+-    primaryContainer   = DuoGreenLight,
+-    onPrimaryContainer = DuoGreenDark,
+-
+-    secondary          = DuoBlue,
+-    onSecondary        = DuoWhite,
+-    secondaryContainer = DuoBlueLight,
+-    onSecondaryContainer = DuoBlueDark,
+-
+-    tertiary           = DuoYellow,
+-    onTertiary         = DuoTextPrimary,
+-    tertiaryContainer  = DuoYellowLight,
+-
+-    background         = DuoBg,
+-    onBackground       = DuoTextPrimary,
+-
+-    surface            = DuoCardBg,
+-    onSurface          = DuoTextPrimary,
+-    onSurfaceVariant   = DuoTextSecondary,
+-    outline            = DuoBorder,
+-    outlineVariant     = DuoBorder,
+-
+-    error              = DuoRed,
+-    onError            = DuoWhite,
+-    errorContainer     = DuoRedLight,
++    primary = Primary,
++    onPrimary = Surface,
++    primaryContainer = Primary,
++    onPrimaryContainer = Surface,
++    secondary = Accent,
++    onSecondary = Surface,
++    background = Background,
++    onBackground = TextPrimary,
++    surface = Surface,
++    onSurface = TextPrimary,
++    onSurfaceVariant = TextSecondary,
++    outline = Border,
++    outlineVariant = Border,
++    error = Error,
++    onError = Surface
+ )
+ 
+ @Composable
+ fun SoyleTheme(content: @Composable () -> Unit) {
+     MaterialTheme(
+         colorScheme = SoyleLightColors,
+-        typography  = SoyleTypography,
+-        content     = content
++        typography = SoyleTypography,
++        content = content
+     )
+-}
+\ No newline at end of file
++}
+diff --git a/gradlew b/gradlew
+old mode 100644
+new mode 100755
+-- 
+2.43.0
+
