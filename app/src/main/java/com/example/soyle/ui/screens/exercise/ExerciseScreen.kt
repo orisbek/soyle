@@ -80,11 +80,11 @@ fun ExerciseScreen(
             // Маскот с подсказкой
             AnimatedContent(targetState = uiState, label = "mascot") { state ->
                 val mascotText = when (state) {
-                    is ExerciseUiState.Idle      -> "Скажи звук «$phoneme»! 🎙"
+                    is ExerciseUiState.Idle      -> "Произнеси звук «$phoneme»"
                     is ExerciseUiState.Recording -> "Слушаю... говори!"
                     is ExerciseUiState.Analyzing -> "Анализирую произношение..."
                     is ExerciseUiState.Success   -> state.feedback
-                    is ExerciseUiState.Error     -> "Что-то пошло не так 😅"
+                    is ExerciseUiState.Error     -> "Что-то пошло не так"
                 }
                 DuoMascotSpeech(text = mascotText)
             }
@@ -95,6 +95,17 @@ fun ExerciseScreen(
                 fontSize   = 120.sp,
                 fontWeight = FontWeight.Black,
                 color      = DuoGreen
+            )
+
+            Text(
+                text = when (exerciseMode) {
+                    ExerciseMode.GAME_RHYTHM -> "Игра: держите ритм произношения"
+                    ExerciseMode.GAME_ECHO -> "Игра: повторите фразу без пауз"
+                    ExerciseMode.GAME_PUZZLE -> "Игра: соберите слово по слогам"
+                    else -> "Тренировка произношения"
+                },
+                fontSize = 14.sp,
+                color = DuoTextSecondary
             )
 
             // ── Центральная зона ───────────────────────────────────────────
@@ -112,8 +123,7 @@ fun ExerciseScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("🎙", fontSize = 40.sp)
-                            LinearProgressIndicator(
+                                                        LinearProgressIndicator(
                                 modifier = Modifier.fillMaxWidth(),
                                 color    = DuoRed,
                                 trackColor = DuoRedLight
@@ -143,7 +153,7 @@ fun ExerciseScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("⚠️ ${state.message}", color = DuoRed, fontSize = 14.sp)
+                            Text(state.message, color = DuoRed, fontSize = 14.sp)
                             TextButton(onClick = { viewModel.reset() }) {
                                 Text("Попробовать снова", color = DuoGreen, fontWeight = FontWeight.Bold)
                             }
@@ -157,7 +167,7 @@ fun ExerciseScreen(
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
             if (!hasMicPermission) {
                 DuoButton(
-                    text    = "РАЗРЕШИТЬ МИКРОФОН 🎙",
+                    text    = "Разрешить микрофон",
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
                 )

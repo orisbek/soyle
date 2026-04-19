@@ -30,7 +30,7 @@ data class HomeUiState(
     val exercises        : List<Exercise> = emptyList(),
     val todayDone        : Int            = 0,
     val todayTotal       : Int            = 5,
-    val greeting         : String         = "Привет! 👋",
+    val greeting         : String         = "Добро пожаловать",
     val error            : String?        = null
 )
 
@@ -105,10 +105,10 @@ class HomeViewModel @Inject constructor(
             else      -> "Добрый вечер"
         }
         return when {
-            progress.currentStreak >= 7 -> "$timeGreeting! 🔥 Ты огонь — ${progress.currentStreak} дней подряд!"
-            progress.currentStreak >= 3 -> "$timeGreeting! 💪 Уже ${progress.currentStreak} дня подряд!"
-            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало! 🌟"
-            else                        -> "$timeGreeting! Пора тренироваться! 🦉"
+            progress.currentStreak >= 7 -> "$timeGreeting! Отличный ритм: ${progress.currentStreak} дней подряд."
+            progress.currentStreak >= 3 -> "$timeGreeting! Уже ${progress.currentStreak} дня подряд."
+            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало."
+            else                        -> "$timeGreeting! Пора тренироваться."
         }
     }
 }

@@ -5,39 +5,28 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val SoyleLightColors = lightColorScheme(
-    primary            = DuoGreen,
-    onPrimary          = DuoWhite,
-    primaryContainer   = DuoGreenLight,
-    onPrimaryContainer = DuoGreenDark,
-
-    secondary          = DuoBlue,
-    onSecondary        = DuoWhite,
-    secondaryContainer = DuoBlueLight,
-    onSecondaryContainer = DuoBlueDark,
-
-    tertiary           = DuoYellow,
-    onTertiary         = DuoTextPrimary,
-    tertiaryContainer  = DuoYellowLight,
-
-    background         = DuoBg,
-    onBackground       = DuoTextPrimary,
-
-    surface            = DuoCardBg,
-    onSurface          = DuoTextPrimary,
-    onSurfaceVariant   = DuoTextSecondary,
-    outline            = DuoBorder,
-    outlineVariant     = DuoBorder,
-
-    error              = DuoRed,
-    onError            = DuoWhite,
-    errorContainer     = DuoRedLight,
+    primary = Primary,
+    onPrimary = Surface,
+    primaryContainer = Primary,
+    onPrimaryContainer = Surface,
+    secondary = Accent,
+    onSecondary = Surface,
+    background = Background,
+    onBackground = TextPrimary,
+    surface = Surface,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = Border,
+    outlineVariant = Border,
+    error = Error,
+    onError = Surface
 )
 
 @Composable
 fun SoyleTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = SoyleLightColors,
-        typography  = SoyleTypography,
-        content     = content
+        typography = SoyleTypography,
+        content = content
     )
 }
