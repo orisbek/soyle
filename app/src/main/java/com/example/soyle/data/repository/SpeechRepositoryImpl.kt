@@ -145,13 +145,11 @@ class SpeechRepositoryImpl @Inject constructor(
     }
 
     private fun defaultExercises() = listOf(
-        Exercise("1", "Р", ExerciseMode.SOUND,    "Р",     1),
-        Exercise("2", "Р", ExerciseMode.SYLLABLE, "РА",    1),
-        Exercise("3", "Р", ExerciseMode.SYLLABLE, "РО",    1),
-        Exercise("4", "Р", ExerciseMode.WORD,     "РЫБА",  2),
-        Exercise("5", "Р", ExerciseMode.WORD,     "РУКА",  2),
-        Exercise("6", "Л", ExerciseMode.SOUND,    "Л",     1),
-        Exercise("7", "Л", ExerciseMode.SYLLABLE, "ЛА",    1),
-        Exercise("8", "Л", ExerciseMode.WORD,     "ЛИСА",  2),
+        Exercise("1", "Р", ExerciseMode.SOUND, "Р", 1),
+        Exercise("2", "Р", ExerciseMode.SYLLABLE, "РА", 1),
+        Exercise("3", "Р", ExerciseMode.WORD, "РОЗА", 2),
+        Exercise("4", "Р", ExerciseMode.GAME_RHYTHM, "РА-РО-РУ", 2),
+        Exercise("5", "Р", ExerciseMode.GAME_ECHO, "Повтори фразу", 2),
+        Exercise("6", "Р", ExerciseMode.GAME_PUZZLE, "Собери слово", 3),
     )
 }
