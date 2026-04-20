@@ -1,7 +1,10 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Soyle" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+<resources>
+    <style name="Base.Theme.Soyle" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/kids_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <style name="Theme.Soyle" parent="Base.Theme.Soyle" />
 </resources>

@@ -4,13 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,16 +74,28 @@ fun HomeScreen(
                 // ── Упражнения сегодня ─────────────────────────────────────
                 KidsSectionTitle(title = "✨ Сегодня учим", emoji = "")
 
-                if (uiState.isLoading) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
-                        CircularProgressIndicator(color = KidsMint, modifier = Modifier.size(40.dp))
+                if (uiState.exercises.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(90.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(KidsMintLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Нажми на занятие ниже чтобы начать! 👇",
+                            color      = KidsMintDark,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize   = 14.sp
+                        )
                     }
                 } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding        = PaddingValues(end = 4.dp)
+                    Row(
+                        modifier              = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(uiState.exercises.take(6)) { exercise ->
+                        uiState.exercises.take(6).forEach { exercise ->
                             KidsExerciseCard(
                                 exercise = exercise,
                                 onClick  = { onStartExercise(exercise.phoneme, exercise.mode.name) }

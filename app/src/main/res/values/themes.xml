@@ -1,5 +1,9 @@
 <resources>
-    <style name="Base.Theme.Soyle" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Base.Theme.Soyle" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@color/kids_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <style name="Theme.Soyle" parent="Base.Theme.Soyle" />
