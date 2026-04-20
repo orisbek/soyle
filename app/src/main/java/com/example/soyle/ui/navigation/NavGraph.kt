@@ -8,7 +8,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.soyle.ui.screens.exercise.ExerciseScreen
+import com.example.soyle.ui.screens.game.ALL_WORD_LEVELS
 import com.example.soyle.ui.screens.game.GameScreen
+import com.example.soyle.ui.screens.game.LevelSelectScreen
+import com.example.soyle.ui.screens.game.WordBuildingScreen
 import com.example.soyle.ui.screens.home.HomeScreen
 import com.example.soyle.ui.screens.onboarding.OnboardingScreen
 import com.example.soyle.ui.screens.profile.ProfileScreen
@@ -25,7 +28,6 @@ fun NavGraph(
         startDestination = Screen.Home.route
     ) {
 
-        // ── Onboarding ────────────────────────────────────────────────────
         composable(Screen.Onboarding.route) {
             OnboardingScreen(
                 onFinish = {
@@ -36,55 +38,66 @@ fun NavGraph(
             )
         }
 
-        // ── Home ──────────────────────────────────────────────────────────
         composable(Screen.Home.route) {
             HomeScreen(
                 onStartExercise = { phoneme, mode ->
-                    if (mode == "GAME") {
-                        navController.navigate(Screen.Game.route)
-                    } else {
-                        navController.navigate(
-                            Screen.Exercise.createRoute(phoneme, mode)
-                        )
+                    when (mode) {
+                        "GAME"          -> navController.navigate(Screen.Game.route)
+                        "WORD_BUILDING" -> navController.navigate(Screen.LevelSelect.route)
+                        else            -> navController.navigate(Screen.Exercise.createRoute(phoneme, mode))
                     }
                 },
-                onOpenProgress = {
-                    navController.navigate(Screen.Progress.route)
-                },
-                onOpenProfile = {
-                    navController.navigate(Screen.Profile.route)
-                }
+                onOpenProgress  = { navController.navigate(Screen.Progress.route) },
+                onOpenProfile   = { navController.navigate(Screen.Profile.route) }
             )
         }
 
-        // ── Game ──────────────────────────────────────────────────────────
         composable(Screen.Game.route) {
             GameScreen(
                 onBack   = { navController.popBackStack() },
                 onFinish = { score ->
-                    navController.navigate(
-                        Screen.Result.createRoute(score, "Р")
-                    ) {
+                    navController.navigate(Screen.Result.createRoute(score, "Р")) {
                         popUpTo(Screen.Game.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        // ── Pronunciation Accuracy ────────────────────────────────────────
-        composable(
-            route     = Screen.PronunciationAccuracy.route,
-            arguments = listOf(
-                navArgument("phoneme") { type = NavType.StringType }
-            )
-        ) { backStack ->
-            val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
-            PronunciationAccuracyScreen(
+        // Выбор уровня — 6 случайных из 50
+        composable(Screen.LevelSelect.route) {
+            LevelSelectScreen(
+                onLevelSelected = { level ->
+                    navController.navigate(Screen.WordBuilding.createRoute(level.number - 1))
+                },
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // ── Exercise ──────────────────────────────────────────────────────
+        // Игра «Собери слово»
+        composable(
+            route     = Screen.WordBuilding.route,
+            arguments = listOf(navArgument("levelIndex") { type = NavType.IntType })
+        ) { backStack ->
+            val idx   = backStack.arguments?.getInt("levelIndex") ?: 0
+            val level = ALL_WORD_LEVELS.getOrElse(idx) { ALL_WORD_LEVELS.first() }
+            WordBuildingScreen(
+                level    = level,
+                onBack   = { navController.popBackStack() },
+                onFinish = { score ->
+                    navController.navigate(Screen.Result.createRoute(score, "Р")) {
+                        popUpTo(Screen.WordBuilding.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route     = Screen.PronunciationAccuracy.route,
+            arguments = listOf(navArgument("phoneme") { type = NavType.StringType })
+        ) {
+            PronunciationAccuracyScreen(onBack = { navController.popBackStack() })
+        }
+
         composable(
             route = Screen.Exercise.route,
             arguments = listOf(
@@ -94,14 +107,11 @@ fun NavGraph(
         ) { backStack ->
             val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
             val mode    = backStack.arguments?.getString("mode")    ?: "SOUND"
-
             ExerciseScreen(
                 phoneme  = phoneme,
                 mode     = mode,
                 onResult = { score ->
-                    navController.navigate(
-                        Screen.Result.createRoute(score, phoneme)
-                    ) {
+                    navController.navigate(Screen.Result.createRoute(score, phoneme)) {
                         popUpTo(Screen.Exercise.route) { inclusive = true }
                     }
                 },
@@ -109,7 +119,6 @@ fun NavGraph(
             )
         }
 
-        // ── Result ────────────────────────────────────────────────────────
         composable(
             route = Screen.Result.route,
             arguments = listOf(
@@ -119,14 +128,11 @@ fun NavGraph(
         ) { backStack ->
             val score   = backStack.arguments?.getInt("score")      ?: 0
             val phoneme = backStack.arguments?.getString("phoneme") ?: "Р"
-
             ResultScreen(
                 score   = score,
                 phoneme = phoneme,
                 onRetry = {
-                    navController.navigate(
-                        Screen.Exercise.createRoute(phoneme, "SOUND")
-                    ) {
+                    navController.navigate(Screen.Exercise.createRoute(phoneme, "SOUND")) {
                         popUpTo(Screen.Result.route) { inclusive = true }
                     }
                 },
@@ -138,18 +144,12 @@ fun NavGraph(
             )
         }
 
-        // ── Progress ──────────────────────────────────────────────────────
         composable(Screen.Progress.route) {
-            ProgressScreen(
-                onBack = { navController.popBackStack() }
-            )
+            ProgressScreen(onBack = { navController.popBackStack() })
         }
 
-        // ── Profile ───────────────────────────────────────────────────────
         composable(Screen.Profile.route) {
-            ProfileScreen(
-                onBack = { navController.popBackStack() }
-            )
+            ProfileScreen(onBack = { navController.popBackStack() })
         }
     }
 }

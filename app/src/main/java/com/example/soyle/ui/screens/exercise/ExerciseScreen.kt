@@ -237,12 +237,10 @@ fun ExerciseScreen(
                 KidsRecordButton(
                     isRecording = uiState is ExerciseUiState.Recording,
                     enabled     = uiState is ExerciseUiState.Idle ||
-                            uiState is ExerciseUiState.Recording ||
                             uiState is ExerciseUiState.Error,
                     onClick = {
-                        when (uiState) {
-                            is ExerciseUiState.Recording -> viewModel.stopRecording()
-                            else -> viewModel.startRecording(phoneme, exerciseMode)
+                        if (uiState !is ExerciseUiState.Recording) {
+                            viewModel.startListening(phoneme, exerciseMode)
                         }
                     }
                 )

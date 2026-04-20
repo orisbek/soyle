@@ -374,12 +374,11 @@ private fun KidsExerciseCard(exercise: Exercise, onClick: () -> Unit) {
 @Composable
 private fun KidsModeList(onStartExercise: (String, String) -> Unit) {
     val modes = listOf(
-        ModeItem(ExerciseMode.SOUND,         "Звук «Р»",      "🔤", KidsMint,   KidsMintLight),
-        ModeItem(ExerciseMode.SYLLABLE,      "Слоги с Р",     "📝", KidsBlue,   KidsBlueLight),
-        ModeItem(ExerciseMode.WORD,          "Слова с Р",     "🗣️", KidsPurple, Color(0xFFEDE7FF)),
+        ModeItem(ExerciseMode.SOUND,         "Звук «Р»",        "🔤", KidsMint,   KidsMintLight),
+        ModeItem(ExerciseMode.SYLLABLE,      "Слоги с Р",       "📝", KidsBlue,   KidsBlueLight),
+        ModeItem(ExerciseMode.WORD,          "Слова с Р",       "🗣️", KidsPurple, Color(0xFFEDE7FF)),
         ModeItem(ExerciseMode.LISTEN_CHOOSE, "Слушай и выбирай","👂", KidsOrange, Color(0xFFFFEDD5)),
-        ModeItem(ExerciseMode.VISUALIZE,     "Волна звука",   "🌊", KidsGreen,  KidsGreenLight),
-        ModeItem(ExerciseMode.GAME,          "Поймай букву!",  "🎮", KidsPink,   KidsPinkLight),
+        ModeItem(ExerciseMode.VISUALIZE,     "Волна звука",     "🌊", KidsGreen,  KidsGreenLight),
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -388,6 +387,25 @@ private fun KidsModeList(onStartExercise: (String, String) -> Unit) {
                 onStartExercise("Р", item.mode.name)
             }
         }
+
+        // Секция игр
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text       = "🎮 Игры",
+            fontWeight = FontWeight.ExtraBold,
+            fontSize   = 18.sp,
+            color      = KidsTextPrimary
+        )
+
+        // Поймай букву
+        KidsModeCard(
+            item = ModeItem(ExerciseMode.GAME, "Поймай букву «Р»!", "🎯", KidsPink, KidsPinkLight)
+        ) { onStartExercise("Р", "GAME") }
+
+        // Собери слово
+        KidsModeCard(
+            item = ModeItem(ExerciseMode.WORD, "Собери слово!  (50 уровней)", "🔤", KidsOrange, Color(0xFFFFEDD5))
+        ) { onStartExercise("Р", "WORD_BUILDING") }
     }
 }
 
