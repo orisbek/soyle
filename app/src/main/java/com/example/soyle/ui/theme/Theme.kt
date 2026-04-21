@@ -1,22 +1,33 @@
 package com.example.soyle.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF4CAF50),
-    secondary = Color(0xFFFFC107),
-    tertiary = Color(0xFF03A9F4),
-    background = Color(0xFFFFF9C4),
-    surface = Color(0xFFFFFFFF)
+private val SoyleDarkColorScheme = darkColorScheme(
+    primary            = SoyleAccent,
+    onPrimary          = Color.White,
+    primaryContainer   = SoyleAccentSoft,
+    secondary          = SoyleTextSecondary,
+    onSecondary        = Color.White,
+    background         = SoyleBg,
+    onBackground       = SoyleTextPrimary,
+    surface            = SoyleSurface,
+    onSurface          = SoyleTextPrimary,
+    surfaceVariant     = SoyleSurface2,
+    onSurfaceVariant   = SoyleTextSecondary,
+    outline            = SoyleBorder,
+    outlineVariant     = SoyleBorderLight,
+    error              = SoyleRed,
+    onError            = Color.White
 )
 
 @Composable
 fun SoyleTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = LightColorScheme,
-        content = content
+        colorScheme = SoyleDarkColorScheme,
+        typography  = SoyleTypography,
+        content     = content
     )
 }

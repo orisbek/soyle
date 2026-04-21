@@ -1,29 +1,30 @@
 package com.example.soyle.ui.navigation
 
 sealed class Screen(val route: String) {
+    // ── Онбординг ──────────────────────────────────────────────────────────
+    data object Onboarding     : Screen("onboarding")
+    data object OnboardingGoal : Screen("onboarding/goal")
+    data object OnboardingAge  : Screen("onboarding/age")
+    data object OnboardingTime : Screen("onboarding/time")
+    data object OnboardingDone : Screen("onboarding/done")
 
-    data object Home                : Screen("home")
-    data object Onboarding          : Screen("onboarding")
-    data object Progress            : Screen("progress")
-    data object Profile             : Screen("profile")
-    data object Game                : Screen("game")
-    data object LevelSelect         : Screen("level_select")
-    data object ListenChoose        : Screen("listen_choose")
-    data object PronunciationAccuracy : Screen("pronunciation_accuracy/{phoneme}") {
-        fun createRoute(phoneme: String) = "pronunciation_accuracy/$phoneme"
+    // ── Главные вкладки ────────────────────────────────────────────────────
+    data object Home    : Screen("home")
+    data object Games   : Screen("games")
+    data object Profile : Screen("profile")
+
+    // ── Вложенные экраны ──────────────────────────────────────────────────
+    data object CheckIn : Screen("checkin")
+
+    data object Exercise : Screen("exercise/{id}/{phoneme}") {
+        fun createRoute(id: String, phoneme: String) = "exercise/$id/$phoneme"
     }
 
-    data object Exercise : Screen("exercise/{phoneme}/{mode}") {
-        fun createRoute(phoneme: String, mode: String) =
-            "exercise/$phoneme/$mode"
+    data object GamePlay : Screen("gameplay/{type}") {
+        fun createRoute(type: String) = "gameplay/$type"
     }
 
-    data object Result : Screen("result/{score}/{phoneme}/{mode}") {
-        fun createRoute(score: Int, phoneme: String, mode: String) =
-            "result/$score/$phoneme/$mode"
-    }
-
-    data object WordBuilding : Screen("word_building/{levelIndex}") {
-        fun createRoute(levelIndex: Int) = "word_building/$levelIndex"
+    data object Result : Screen("result/{score}/{phoneme}") {
+        fun createRoute(score: Int, phoneme: String) = "result/$score/$phoneme"
     }
 }
