@@ -12,230 +12,180 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
+import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
+
+// ── Экран результата (как Stoic — серия + достижение) ────────────────────────
 
 @Composable
 fun ResultScreen(
-    score   : Int,
-    phoneme : String,
-    onRetry : () -> Unit,
-    onHome  : () -> Unit
+    score   : Int = 78,
+    phoneme : String = "Р",
+    onHome  : () -> Unit = {},
+    onRetry : () -> Unit = {}
 ) {
-    val stars = when {
-        score >= 85 -> 3
-        score >= 60 -> 2
-        score >= 40 -> 1
-        else        -> 0
-    }
-    val (mascotEmoji, mascotText) = when {
-        score >= 85 -> "🎉" to "Потрясающе! Ты настоящий мастер! 🏆"
-        score >= 65 -> "🥳" to "Хорошо! Ещё немного и будет отлично! 💪"
-        score >= 45 -> "😊" to "Неплохо! Продолжай стараться! 🙂"
-        else        -> "💪" to "Не сдавайся! Попробуй ещё раз!"
-    }
-    val xpEarned = when {
-        score >= 85 -> 20
-        score >= 65 -> 15
-        score >= 45 -> 10
-        else        -> 5
-    }
-    val gaugeColor = scoreColor(score)
+    val stars = when { score >= 85 -> 3; score >= 60 -> 2; score >= 40 -> 1; else -> 0 }
+    val xp    = when { score >= 85 -> 20; score >= 65 -> 15; score >= 45 -> 10; else -> 5 }
+    val color = speechScoreColor(score)
 
-    // Анимация счёта
-    val animatedScore by animateIntAsState(
-        targetValue   = score,
-        animationSpec = tween(1000, easing = FastOutSlowInEasing),
-        label         = "scoreAnim"
-    )
-
-    // Анимация звёзд
-    val infiniteTransition = rememberInfiniteTransition(label = "stars")
-    val starRotate by infiniteTransition.animateFloat(
-        initialValue  = -5f,
-        targetValue   = 5f,
+    val infiniteTransition = rememberInfiniteTransition(label = "result")
+    val rotateAnim by infiniteTransition.animateFloat(
+        initialValue  = -3f,
+        targetValue   = 3f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(1500, easing = FastOutSlowInEasing),
+            animation  = tween(1500),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "starRot"
+        label = "rotate"
     )
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(KidsBg)
+            .background(SoyleBg)
     ) {
-        // ── Шапка ─────────────────────────────────────────────────────────
+        // Кнопки сверху
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Поделиться
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(SoyleSurface),
+                contentAlignment = Alignment.Center
+            ) { Text("↑", fontSize = 16.sp, color = SoyleTextSecondary) }
+            // Звезда (в избранное)
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(SoyleSurface),
+                contentAlignment = Alignment.Center
+            ) { Text("☆", fontSize = 16.sp, color = SoyleTextSecondary) }
+            // Закрыть
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(SoyleSurface).clickable(onClick = onHome),
+                contentAlignment = Alignment.Center
+            ) { Text("×", fontSize = 20.sp, color = SoyleTextSecondary) }
+        }
+
+        Column(
+            modifier            = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Spacer(Modifier.height(60.dp))
+
+            // Цветочек (как в Stoic — streak flower)
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .rotate(rotateAnim),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✿", fontSize = 64.sp, color = SoyleTextMuted.copy(alpha = 0.4f))
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Заголовок
+            Text(
+                text       = "1-day streak.",
+                fontWeight = FontWeight.Bold,
+                fontSize   = 28.sp,
+                color      = SoyleTextPrimary,
+                letterSpacing = (-0.5).sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text      = when {
+                    score >= 85 -> "Отличное произношение! Первый шаг сделан!"
+                    score >= 65 -> "Хорошая работа! Продолжай так держать!"
+                    else        -> "Внутренняя работа — это путь. Ты сделал первый шаг!"
+                },
+                fontSize  = 16.sp,
+                color     = SoyleTextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 24.sp
+            )
+
+            Spacer(Modifier.height(36.dp))
+
+            // Мини-серия (как в Stoic — Mon Tue Wed)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                StreakDot(day = "Пн", isFilled = true)
+                StreakDot(day = "Вт", isFilled = false)
+                StreakDot(day = "Ср", isFilled = false)
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            // Результат
+            CircularScore(score = score, size = 110.dp)
+
+            Spacer(Modifier.height(16.dp))
+
+            // Звёзды
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(3) { i ->
+                    Text(
+                        text     = if (i < stars) "★" else "☆",
+                        fontSize = 28.sp,
+                        color    = if (i < stars) SoyleAmber else SoyleTextMuted
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // XP
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("⭐", fontSize = 16.sp)
+                Text("+$xp XP", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = SoyleAmber)
+            }
+
+            Spacer(Modifier.weight(1f))
+        }
+
+        // Кнопка внизу
+        SoylePrimaryButton(
+            text     = "Здорово!",
+            onClick  = onHome,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp, vertical = 40.dp)
+        )
+    }
+}
+
+@Composable
+private fun StreakDot(day: String, isFilled: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(gaugeColor.copy(alpha = 0.8f), gaugeColor)
-                    )
-                )
-                .padding(20.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(if (isFilled) SoyleButtonPrimary else SoyleSurface)
+                .border(1.dp, if (isFilled) Color.Transparent else SoyleBorder, CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text       = "Результат",
-                fontSize   = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = Color.White,
-                modifier   = Modifier.align(Alignment.Center)
-            )
+            if (isFilled) Text("🔥", fontSize = 16.sp)
         }
-
-        Column(
-            modifier            = Modifier
-                .weight(1f)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly
-        ) {
-            // ── Маскот ────────────────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(KidsMintLight, KidsBlueLight)
-                        )
-                    )
-                    .border(3.dp, KidsMint.copy(0.4f), RoundedCornerShape(24.dp))
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text(mascotEmoji, fontSize = 44.sp)
-                Text(
-                    text       = mascotText,
-                    fontSize   = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = KidsTextPrimary,
-                    lineHeight = 22.sp,
-                    modifier   = Modifier.weight(1f)
-                )
-            }
-
-            // ── Круг с результатом ────────────────────────────────────────
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(160.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    gaugeColor.copy(alpha = 0.2f),
-                                    gaugeColor.copy(alpha = 0.1f)
-                                )
-                            )
-                        )
-                        .border(6.dp, gaugeColor, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text       = "$animatedScore%",
-                            fontSize   = 44.sp,
-                            fontWeight = FontWeight.Black,
-                            color      = gaugeColor
-                        )
-                        Text(
-                            text       = "Звук «$phoneme»",
-                            fontSize   = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color      = KidsTextSecondary
-                        )
-                    }
-                }
-
-                // Звёзды
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(3) { i ->
-                        Text(
-                            text     = if (i < stars) "⭐" else "☆",
-                            fontSize = 36.sp,
-                            modifier = if (i < stars) Modifier.rotate(starRotate * (i - 1)) else Modifier
-                        )
-                    }
-                }
-
-                // XP
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(KidsYellowLight)
-                        .border(2.dp, KidsYellow, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("⭐", fontSize = 20.sp)
-                        Text(
-                            text       = "+$xpEarned XP",
-                            fontSize   = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color      = KidsYellowDark
-                        )
-                    }
-                }
-            }
-        }
-
-        // ── Кнопки ────────────────────────────────────────────────────────
-        Column(
-            modifier            = Modifier
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.horizontalGradient(listOf(KidsMint, KidsBlue))
-                    )
-                    .clickable(onClick = onHome)
-                    .padding(vertical = 18.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text       = "🏠  ДОМОЙ",
-                    fontSize   = 17.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = Color.White
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White)
-                    .border(3.dp, KidsMint, RoundedCornerShape(24.dp))
-                    .clickable(onClick = onRetry)
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text       = "🔄  Попробовать снова",
-                    fontSize   = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = KidsMint
-                )
-            }
-        }
+        Text(day, fontSize = 11.sp, color = SoyleTextMuted)
     }
 }
