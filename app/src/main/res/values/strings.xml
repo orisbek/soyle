@@ -1,3 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">soyle</string>
+    <string name="app_name">Сойле</string>
+    <string name="correct">Верно! Молодец! 🎉</string>
+    <string name="try_again">Старайся! Повтори ещё разок ❤️</string>
 </resources>

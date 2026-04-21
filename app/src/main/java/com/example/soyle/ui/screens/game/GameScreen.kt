@@ -11,7 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -26,19 +28,8 @@ import kotlin.random.Random
 import com.example.soyle.ui.theme.*
 
 /**
- * 🎮 Игра «Поймай букву!»
- *
- * Механика:
- * - Сверху вниз падают буквы (нужная «Р» и отвлекающие)
- * - Ребёнок нажимает на букву «Р» — получает очки
- * - Нажимает неверную — теряет сердце
- * - Нужная буква падает и исчезает — теряет сердце
- * - 3 жизни, нарастающая скорость
+ * 🎮 Улучшенная игра «Поймай букву!»
  */
-
-private const val GAME_WIDTH  = 360f
-private const val GAME_HEIGHT = 580f
-private const val LETTER_SIZE = 64f
 
 private data class FallingLetter(
     val id       : Int,
@@ -46,9 +37,10 @@ private data class FallingLetter(
     val x        : Float,
     val y        : Float,
     val speed    : Float,
+    val rotation : Float,
     val isTarget : Boolean,
-    val caught   : Boolean = false,
-    val missed   : Boolean = false
+    val isBonus  : Boolean = false,
+    val caught   : Boolean = false
 )
 
 private data class GameState(
@@ -60,7 +52,6 @@ private data class GameState(
     val ticks       : Int                 = 0,
     val isGameOver  : Boolean             = false,
     val isStarted   : Boolean             = false,
-    val showCombo   : Boolean             = false,
     val lastEvent   : String              = ""
 )
 
@@ -77,411 +68,236 @@ fun GameScreen(
     var boxHeightPx by remember { mutableFloatStateOf(1f) }
     val density = LocalDensity.current
 
-    // ── Игровой тик ──────────────────────────────────────────────────────────
+    // Анимация фона
+    val infiniteTransition = rememberInfiniteTransition(label = "bg")
+    val bgOffset by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 1000f,
+        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing)), label = "bgAnim"
+    )
+
     LaunchedEffect(gameState.isStarted, gameState.isGameOver) {
         if (!gameState.isStarted || gameState.isGameOver) return@LaunchedEffect
 
         while (true) {
-            delay(30L)  // ~33 fps
+            delay(20L) // Плавнее - 50 FPS
             gameState = gameState.copy(ticks = gameState.ticks + 1).let { state ->
-                val speedMultiplier = 1f + (state.level - 1) * 0.25f
+                val speedMultiplier = 1f + (state.level - 1) * 0.15f
 
-                // Двигаем буквы вниз
                 val moved = state.letters.map { letter ->
-                    letter.copy(y = letter.y + letter.speed * speedMultiplier)
-                }
-
-                // Убираем пойманные/пропущенные
-                val (active, gone) = moved.partition { it.y < boxHeightPx + LETTER_SIZE }
-
-                // Потеря жизни за пропущенную целевую
-                val missedTargets = gone.count { it.isTarget && !it.caught }
-                val newLives      = (state.lives - missedTargets).coerceAtLeast(0)
-
-                // Добавляем новую букву (каждые N тиков)
-                val spawnInterval = maxOf(60 - state.level * 5, 25)
-                val newLetters    = active.toMutableList()
-
-                if (state.ticks % spawnInterval == 0) {
-                    val isTarget = Random.nextFloat() < 0.45f
-                    val letter   = if (isTarget) "Р" else DISTRACTORS.random()
-                    val x        = Random.nextFloat() * (boxWidthPx - LETTER_SIZE * 2) + LETTER_SIZE / 2
-                    val speed    = Random.nextFloat() * 3f + 3f
-                    newLetters += FallingLetter(
-                        id       = ++idCounter,
-                        letter   = letter,
-                        x        = x,
-                        y        = -LETTER_SIZE,
-                        speed    = speed,
-                        isTarget = isTarget
+                    letter.copy(
+                        y = letter.y + letter.speed * speedMultiplier,
+                        rotation = letter.rotation + 2f
                     )
                 }
 
-                // Повышение уровня каждые 10 очков
-                val newLevel = 1 + state.score / 10
+                val (active, gone) = moved.partition { it.y < boxHeightPx + 100 }
+                val missedTargets = gone.count { it.isTarget && !it.caught && !it.isBonus }
+                val newLives = (state.lives - missedTargets).coerceAtLeast(0)
+
+                val spawnInterval = maxOf(40 - state.level * 3, 15)
+                val newLetters = active.toMutableList()
+
+                if (state.ticks % spawnInterval == 0) {
+                    val rand = Random.nextFloat()
+                    val isBonus = rand < 0.05f
+                    val isTarget = rand < 0.4f || isBonus
+                    
+                    val letter = if (isBonus) "🌟" else if (isTarget) "Р" else DISTRACTORS.random()
+                    val x = Random.nextFloat() * (boxWidthPx - 150) + 75
+                    
+                    newLetters += FallingLetter(
+                        id = ++idCounter,
+                        letter = letter,
+                        x = x,
+                        y = -100f,
+                        speed = Random.nextFloat() * 2f + 4f,
+                        rotation = Random.nextFloat() * 360f,
+                        isTarget = isTarget,
+                        isBonus = isBonus
+                    )
+                }
 
                 state.copy(
-                    letters    = newLetters,
-                    lives      = newLives,
+                    letters = newLetters,
+                    lives = newLives,
                     isGameOver = newLives <= 0,
-                    level      = newLevel
+                    level = 1 + state.score / 15
                 )
             }
 
             if (gameState.isGameOver) {
-                delay(500)
+                delay(800)
                 onFinish(gameState.score)
                 break
             }
         }
     }
 
-    // ── UI ────────────────────────────────────────────────────────────────────
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460))
-                )
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0C29))) {
+        // Живой космический фон
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E))
             )
-    ) {
-        // ── Шапка ─────────────────────────────────────────────────────────────
-        GameTopBar(
-            score  = gameState.score,
-            lives  = gameState.lives,
-            level  = gameState.level,
-            onBack = onBack
-        )
-
-        // ── Игровое поле ──────────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .onGloballyPositioned { coords ->
-                    boxWidthPx  = coords.size.width.toFloat()
-                    boxHeightPx = coords.size.height.toFloat()
-                }
-        ) {
-            // Фоновые звёздочки
-            repeat(20) { i ->
-                val xFrac = (i * 0.13f + 0.05f) % 1f
-                val yFrac = (i * 0.19f + 0.03f) % 1f
-                Text(
-                    text     = "✦",
-                    fontSize = (8 + i % 6).sp,
-                    color    = Color.White.copy(alpha = 0.1f + (i % 4) * 0.05f),
-                    modifier = Modifier
-                        .offset(
-                            x = with(density) { (xFrac * boxWidthPx).toDp() },
-                            y = with(density) { (yFrac * boxHeightPx).toDp() }
-                        )
-                )
-            }
-
-            // Падающие буквы
-            gameState.letters.forEach { letter ->
-                FallingLetterItem(
-                    letter    = letter,
-                    density   = density,
-                    onTap     = { tapped ->
-                        if (tapped.isTarget && !tapped.caught) {
-                            val combo    = gameState.combo + 1
-                            val points   = if (combo >= 3) 2 else 1
-                            gameState = gameState.copy(
-                                letters   = gameState.letters.map {
-                                    if (it.id == tapped.id) it.copy(caught = true) else it
-                                },
-                                score     = gameState.score + points,
-                                combo     = combo,
-                                showCombo = combo >= 3,
-                                lastEvent = if (combo >= 3) "КОМБО $combo! +$points" else "+$points ⭐"
-                            )
-                        } else if (!tapped.isTarget) {
-                            gameState = gameState.copy(
-                                lives     = (gameState.lives - 1).coerceAtLeast(0),
-                                combo     = 0,
-                                isGameOver = gameState.lives - 1 <= 0,
-                                lastEvent = "Не та буква! 💔"
-                            )
-                        }
-                    }
-                )
-            }
-
-            // Подсказка «нажимай Р»
-            if (!gameState.isStarted) {
-                // показывается ниже
-            }
-
-            // Всплывающее событие
-            if (gameState.lastEvent.isNotEmpty()) {
-                Text(
-                    text       = gameState.lastEvent,
-                    fontSize   = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = if (gameState.lastEvent.startsWith("+")) KidsYellow else KidsPink,
-                    modifier   = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 20.dp)
-                )
-            }
+            drawRect(brush)
         }
 
-        // ── Нижняя кнопка ─────────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!gameState.isStarted) {
-                StartButton {
-                    gameState = GameState(isStarted = true)
+        Column(modifier = Modifier.fillMaxSize()) {
+            GameTopBar(score = gameState.score, lives = gameState.lives, level = gameState.level, onBack = onBack)
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().onGloballyPositioned {
+                boxWidthPx = it.size.width.toFloat()
+                boxHeightPx = it.size.height.toFloat()
+            }) {
+                // Буквы
+                gameState.letters.forEach { letter ->
+                    FallingLetterItem(
+                        letter = letter,
+                        onTap = { tapped ->
+                            if (tapped.isTarget && !tapped.caught) {
+                                val points = if (tapped.isBonus) 10 else 1
+                                gameState = gameState.copy(
+                                    letters = gameState.letters.map { if (it.id == tapped.id) it.copy(caught = true) else it },
+                                    score = gameState.score + points,
+                                    lastEvent = if (tapped.isBonus) "СУПЕР БОНУС! +10" else "+$points ⭐"
+                                )
+                            } else if (!tapped.isTarget) {
+                                gameState = gameState.copy(
+                                    lives = (gameState.lives - 1).coerceAtLeast(0),
+                                    lastEvent = "Ой! Не та буква! 💔"
+                                )
+                            }
+                        }
+                    )
                 }
-            } else if (gameState.isGameOver) {
-                GameOverPanel(score = gameState.score) {
-                    gameState = GameState(isStarted = true)
-                    idCounter = 0
+
+                if (gameState.lastEvent.isNotEmpty()) {
+                    Text(
+                        text = gameState.lastEvent,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = KidsYellow,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp)
+                    )
                 }
-            } else {
-                // Подсказка во время игры
-                Text(
-                    text       = "Нажимай только на букву  Р!",
-                    fontSize   = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = Color.White.copy(alpha = 0.7f),
-                    textAlign  = TextAlign.Center
-                )
+            }
+
+            // Нижняя панель
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                if (!gameState.isStarted) {
+                    StartButton { gameState = GameState(isStarted = true) }
+                } else if (gameState.isGameOver) {
+                    GameOverPanel(score = gameState.score) {
+                        gameState = GameState(isStarted = true)
+                        idCounter = 0
+                    }
+                }
             }
         }
     }
 }
-
-// ── Падающая буква ────────────────────────────────────────────────────────────
 
 @Composable
 private fun FallingLetterItem(
     letter : FallingLetter,
-    density: androidx.compose.ui.unit.Density,
     onTap  : (FallingLetter) -> Unit
 ) {
-    if (letter.caught || letter.missed) return
+    if (letter.caught) return
 
-    val scale by animateFloatAsState(
-        targetValue = if (letter.caught) 1.6f else 1f,
-        label       = "letterScale"
+    val density = LocalDensity.current
+    val infiniteTransition = rememberInfiniteTransition(label = "letter")
+    
+    // Эффект покачивания
+    val drift by infiniteTransition.animateFloat(
+        initialValue = -10f, targetValue = 10f,
+        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "drift"
     )
-    val alpha by animateFloatAsState(
-        targetValue = if (letter.caught) 0f else 1f,
-        label       = "letterAlpha"
-    )
 
-    val bgColor = if (letter.isTarget)
-        Brush.radialGradient(colors = listOf(KidsMint, Color(0xFF00B5A3)))
-    else
-        Brush.radialGradient(colors = listOf(Color(0xFF6C757D), Color(0xFF495057)))
-
-    val xDp = with(density) { letter.x.toDp() }
+    val xDp = with(density) { (letter.x + drift).toDp() }
     val yDp = with(density) { letter.y.toDp() }
 
     Box(
         modifier = Modifier
-            .offset(x = xDp - 32.dp, y = yDp - 32.dp)
-            .size(64.dp)
-            .scale(scale)
-            .alpha(alpha)
+            .offset(x = xDp - 35.dp, y = yDp - 35.dp)
+            .size(70.dp)
+            .rotate(letter.rotation)
             .clip(CircleShape)
-            .background(bgColor)
+            .background(
+                if (letter.isBonus) Brush.radialGradient(listOf(Color.Yellow, KidsOrange))
+                else if (letter.isTarget) Brush.linearGradient(listOf(KidsMint, KidsBlue))
+                else Brush.linearGradient(listOf(Color.Gray, Color.DarkGray))
+            )
             .border(
-                width = 3.dp,
-                color = if (letter.isTarget) KidsYellow.copy(alpha = 0.8f) else Color.Transparent,
-                shape = CircleShape
+                3.dp,
+                if (letter.isTarget) Color.White.copy(0.6f) else Color.Transparent,
+                CircleShape
             )
             .clickable { onTap(letter) },
         contentAlignment = Alignment.Center
     ) {
+        if (letter.isTarget && !letter.isBonus) {
+            // Эффект свечения для буквы Р
+            Box(modifier = Modifier.fillMaxSize().blur(10.dp).background(Color.White.copy(0.2f)))
+        }
+        
         Text(
-            text       = letter.letter,
-            fontSize   = 28.sp,
+            text = letter.letter,
+            fontSize = if (letter.isBonus) 32.sp else 28.sp,
             fontWeight = FontWeight.Black,
-            color      = Color.White,
-            textAlign  = TextAlign.Center
+            color = Color.White
         )
     }
 }
-
-// ── Шапка игры ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun GameTopBar(score: Int, lives: Int, level: Int, onBack: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.3f))
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        modifier = Modifier.fillMaxWidth().background(Color.Black.copy(0.4f)).padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Кнопка назад
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.15f))
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("←", fontSize = 18.sp, color = Color.White, fontWeight = FontWeight.Black)
+        IconButton(onClick = onBack) {
+            Text("🏠", fontSize = 24.sp)
         }
-
-        // Очки
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text("⭐", fontSize = 20.sp)
-            Text(
-                text       = score.toString(),
-                fontSize   = 22.sp,
-                fontWeight = FontWeight.Black,
-                color      = KidsYellow
-            )
+            Spacer(Modifier.width(4.dp))
+            Text("$score", fontSize = 22.sp, fontWeight = FontWeight.Black, color = KidsYellow)
         }
 
-        // Жизни
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row {
             repeat(3) { i ->
-                Text(
-                    text     = if (i < lives) "❤️" else "🖤",
-                    fontSize = 22.sp
-                )
+                Text(if (i < lives) "❤️" else "🖤", fontSize = 20.sp)
             }
         }
 
-        // Уровень
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(KidsPurple.copy(alpha = 0.3f))
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text       = "Ур. $level",
-                fontSize   = 13.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = KidsPurple
-            )
+        Surface(color = KidsPurple, shape = RoundedCornerShape(8.dp)) {
+            Text("УРОВЕНЬ $level", modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
-
-// ── Кнопка старта ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun StartButton(onStart: () -> Unit) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue  = 1f,
-        targetValue   = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "startPulse"
-    )
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text       = "🎮 Поймай букву Р!",
-            fontSize   = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color      = Color.White,
-            textAlign  = TextAlign.Center
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text       = "Нажимай только когда\nвидишь букву  Р",
-            fontSize   = 14.sp,
-            color      = Color.White.copy(alpha = 0.7f),
-            textAlign  = TextAlign.Center
-        )
-        Spacer(Modifier.height(20.dp))
-        Box(
-            modifier = Modifier
-                .scale(scale)
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(KidsMint, KidsBlue)
-                    )
-                )
-                .clickable(onClick = onStart)
-                .padding(horizontal = 48.dp, vertical = 18.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text       = "▶  НАЧАТЬ!",
-                fontSize   = 20.sp,
-                fontWeight = FontWeight.Black,
-                color      = Color.White
-            )
-        }
+    Button(
+        onClick = onStart,
+        colors = ButtonDefaults.buttonColors(containerColor = KidsMint),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.height(60.dp).fillMaxWidth()
+    ) {
+        Text("ПОЕХАЛИ! 🚀", fontSize = 20.sp, fontWeight = FontWeight.Black)
     }
 }
 
-// ── Экран конца игры ──────────────────────────────────────────────────────────
-
 @Composable
 private fun GameOverPanel(score: Int, onRestart: () -> Unit) {
-    val stars = when {
-        score >= 20 -> 3
-        score >= 10 -> 2
-        score >= 5  -> 1
-        else        -> 0
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("🎉", fontSize = 48.sp)
-        Text(
-            text       = "Игра окончена!",
-            fontSize   = 22.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color      = Color.White
-        )
-        Row {
-            repeat(3) { i ->
-                Text(
-                    text     = if (i < stars) "⭐" else "☆",
-                    fontSize = 32.sp
-                )
-            }
-        }
-        Text(
-            text       = "Очки: $score",
-            fontSize   = 28.sp,
-            fontWeight = FontWeight.Black,
-            color      = KidsYellow
-        )
-        Spacer(Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(KidsMint)
-                .clickable(onClick = onRestart)
-                .padding(horizontal = 40.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text       = "🔄  Ещё раз!",
-                fontSize   = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = Color.White
-            )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("КОНЕЦ ИГРЫ!", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.White)
+        Text("Твой счёт: $score", fontSize = 24.sp, color = KidsYellow)
+        Spacer(Modifier.height(24.dp))
+        Button(onClick = onRestart, colors = ButtonDefaults.buttonColors(containerColor = KidsPink)) {
+            Text("ЕЩЁ РАЗ 🔄", fontSize = 18.sp)
         }
     }
 }

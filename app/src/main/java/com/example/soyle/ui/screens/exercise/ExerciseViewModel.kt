@@ -12,12 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── UI State ──────────────────────────────────────────────────────────────────
-
 sealed class ExerciseUiState {
-    data object Idle      : ExerciseUiState()  // ждём нажатия
-    data object Recording : ExerciseUiState()  // идёт запись
-    data object Analyzing : ExerciseUiState()  // ждём сервер
+    data object Idle      : ExerciseUiState()
+    data object Recording : ExerciseUiState()
+    data object Analyzing : ExerciseUiState()
     data class  Success(
         val score    : Int,
         val feedback : String,
@@ -27,53 +25,59 @@ sealed class ExerciseUiState {
     data class  Error(val message: String) : ExerciseUiState()
 }
 
-// ── ViewModel ─────────────────────────────────────────────────────────────────
-
 @HiltViewModel
 class ExerciseViewModel @Inject constructor(
-    private val analyzePronunciation : AnalyzePronunciation,
-    private val audioRecorder        : AudioRecorder
+    private val audioRecorder        : AudioRecorder,
+    private val analyzePronunciation : AnalyzePronunciation
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ExerciseUiState>(ExerciseUiState.Idle)
     val uiState = _uiState.asStateFlow()
 
+    private val userId = "current_user"
+
     fun startRecording(phoneme: String, mode: ExerciseMode) {
         if (_uiState.value is ExerciseUiState.Recording) return
 
         viewModelScope.launch {
-            _uiState.value = ExerciseUiState.Recording
+            try {
+                _uiState.value = ExerciseUiState.Recording
+                
+                // Записываем аудио (3 секунды по умолчанию в AudioRecorder)
+                val audioBytes = audioRecorder.record()
+                
+                _uiState.value = ExerciseUiState.Analyzing
 
-            // Записываем аудио
-            val audioBytes = audioRecorder.record()
+                // Отправляем на анализ (через UseCase, который обращается к репозиторию)
+                val result = analyzePronunciation(
+                    audioBytes = audioBytes,
+                    phoneme    = phoneme,
+                    mode       = mode,
+                    userId     = userId
+                )
 
-            _uiState.value = ExerciseUiState.Analyzing
-
-            // Отправляем на сервер
-            analyzePronunciation(
-                audioBytes = audioBytes,
-                phoneme    = phoneme,
-                mode       = mode,
-                userId     = "current_user"   // TODO: UserSession
-            ).fold(
-                onSuccess = { result ->
+                result.onSuccess { pronunciation ->
                     _uiState.value = ExerciseUiState.Success(
-                        score    = result.score,
-                        feedback = result.feedback,
-                        emotion  = result.mascotEmotion,
-                        xp       = result.xpEarned
+                        score    = pronunciation.score,
+                        feedback = pronunciation.feedback,
+                        emotion  = pronunciation.mascotEmotion,
+                        xp       = pronunciation.xpEarned
                     )
-                },
-                onFailure = { e ->
-                    _uiState.value = ExerciseUiState.Error(
-                        message = e.message ?: "Ошибка соединения с сервером"
-                    )
+                }.onFailure { exception ->
+                    _uiState.value = ExerciseUiState.Error(exception.message ?: "Ошибка анализа")
                 }
-            )
+
+            } catch (e: Exception) {
+                _uiState.value = ExerciseUiState.Error(e.message ?: "Ошибка записи")
+            }
         }
     }
 
-    fun stopRecording() = audioRecorder.stop()
+    fun stopRecording() {
+        audioRecorder.stop()
+    }
 
-    fun reset() { _uiState.value = ExerciseUiState.Idle }
+    fun reset() {
+        _uiState.value = ExerciseUiState.Idle
+    }
 }

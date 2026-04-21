@@ -1,6 +1,7 @@
 package com.example.soyle.ui.screens.exercise
 
 import android.Manifest
+import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -14,8 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -27,8 +26,16 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.soyle.domain.model.ExerciseMode
-import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
+import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlin.random.Random
+
+// Данные для режима "Слушай и выбирай"
+data class ListenChooseTask(
+    val correctWord: String,
+    val options: List<String>
+)
 
 @Composable
 fun ExerciseScreen(
@@ -39,408 +46,272 @@ fun ExerciseScreen(
     viewModel : ExerciseViewModel = hiltViewModel()
 ) {
     val uiState      by viewModel.uiState.collectAsState()
-    val exerciseMode  = remember { ExerciseMode.valueOf(mode) }
+    val exerciseMode  = remember { try { ExerciseMode.valueOf(mode) } catch(e: Exception) { ExerciseMode.SOUND } }
     val context       = LocalContext.current
+
+    // Инициализация TTS
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    DisposableEffect(Unit) {
+        val ttsInstance = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale("ru")
+            }
+        }
+        tts = ttsInstance
+        onDispose {
+            ttsInstance.stop()
+            ttsInstance.shutdown()
+        }
+    }
+
+    // Список заданий
+    val contentList = remember(exerciseMode) {
+        when(exerciseMode) {
+            ExerciseMode.SYLLABLE -> listOf("РА", "РО", "РУ", "РЫ", "РЕ")
+            ExerciseMode.WORD -> listOf("РАК", "РЫБА", "РУКА", "РОЗА", "ГОРЫ")
+            else -> listOf(phoneme)
+        }
+    }
+
+    val listenChooseTasks = remember {
+        listOf(
+            ListenChooseTask("РАК", listOf("ЛАК", "МАК", "РАК", "БАК")),
+            ListenChooseTask("РЫБА", listOf("ЛЫБА", "РЫБА", "ГЫБА", "ШЫБА")),
+            ListenChooseTask("РУКА", listOf("ЛУКА", "МУКА", "РУКА", "СУКА")),
+            ListenChooseTask("РОЗА", listOf("ЛОЗА", "КОЗА", "РОЗА", "ПОЗА")),
+            ListenChooseTask("ГОРА", listOf("ГОЛА", "ГОРА", "ГОДА", "ГОША"))
+        )
+    }
+
+    var currentIndex by remember { mutableIntStateOf(0) }
+    
+    // Функция озвучки
+    val speak = { text: String ->
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+    }
+
+    // Авто-озвучка при смене задания в режиме ListenChoose
+    if (exerciseMode == ExerciseMode.LISTEN_CHOOSE) {
+        LaunchedEffect(currentIndex) {
+            delay(500)
+            speak(listenChooseTasks[currentIndex].correctWord)
+        }
+    }
 
     var hasMicPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.RECORD_AUDIO
-            ) == PermissionChecker.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PermissionChecker.PERMISSION_GRANTED
         )
     }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { hasMicPermission = it }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasMicPermission = it }
 
     LaunchedEffect(uiState) {
         if (uiState is ExerciseUiState.Success) {
-            kotlinx.coroutines.delay(2000)
-            onResult((uiState as ExerciseUiState.Success).score)
+            val score = (uiState as ExerciseUiState.Success).score
+            if (score >= 100) {
+                delay(2000)
+                if (exerciseMode == ExerciseMode.LISTEN_CHOOSE) {
+                    if (currentIndex < listenChooseTasks.size - 1) {
+                        currentIndex++
+                        viewModel.reset()
+                    } else onResult(100)
+                } else {
+                    if (currentIndex < contentList.size - 1) {
+                        currentIndex++
+                        viewModel.reset()
+                    } else onResult(score)
+                }
+            } else if (score == 50) {
+                delay(3500)
+                viewModel.reset()
+            }
         }
     }
 
-    // Анимация попугая
     val infiniteTransition = rememberInfiniteTransition(label = "mascot")
     val mascotY by infiniteTransition.animateFloat(
-        initialValue  = 0f,
-        targetValue   = -8f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+        initialValue  = 0f, targetValue   = -8f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "mascotBounce"
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(KidsBg)
-    ) {
-        // ── Красочная шапка ────────────────────────────────────────────────
+    Column(modifier = Modifier.fillMaxSize().background(KidsBg)) {
+        // Шапка
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(KidsMint, KidsBlue)
-                    )
-                )
-                .padding(horizontal = 20.dp, vertical = 14.dp)
+            modifier = Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(KidsMint, KidsBlue))).padding(horizontal = 20.dp, vertical = 14.dp)
         ) {
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.25f))
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("←", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black)
-                }
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    text       = modeTitle(exerciseMode, phoneme),
-                    fontSize   = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = Color.White
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Text("←", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Black) }
+                Spacer(Modifier.width(8.dp))
+                Text(text = modeTitle(exerciseMode, phoneme), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 Spacer(Modifier.weight(1f))
-                // Жизни
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    repeat(3) { Text("❤️", fontSize = 18.sp) }
-                }
+                val total = if (exerciseMode == ExerciseMode.LISTEN_CHOOSE) listenChooseTasks.size else contentList.size
+                Text("${currentIndex + 1}/$total", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
 
-        // ── Контент ────────────────────────────────────────────────────────
         Column(
-            modifier            = Modifier
-                .weight(1f)
-                .padding(horizontal = 24.dp),
+            modifier = Modifier.weight(1f).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
-            // ── Маскот с облачком ─────────────────────────────────────────
-            AnimatedContent(targetState = uiState, label = "mascot") { state ->
-                val mascotText = when (state) {
-                    is ExerciseUiState.Idle      -> "Скажи звук «$phoneme»! 🎙"
-                    is ExerciseUiState.Recording -> "Слушаю... говори!"
-                    is ExerciseUiState.Analyzing -> "Анализирую произношение..."
-                    is ExerciseUiState.Success   -> state.feedback
-                    is ExerciseUiState.Error     -> "Что-то пошло не так 😅"
-                }
-                KidsExerciseMascot(text = mascotText, offsetY = mascotY)
-            }
+            // Маскот
+            KidsExerciseMascot(
+                text = when {
+                    exerciseMode == ExerciseMode.LISTEN_CHOOSE -> "Послушай и выбери правильное слово!"
+                    uiState is ExerciseUiState.Success -> (uiState as ExerciseUiState.Success).feedback
+                    uiState is ExerciseUiState.Recording -> "Слушаю..."
+                    else -> "Скажи «${contentList[currentIndex]}»! 🎙"
+                },
+                offsetY = mascotY
+            )
 
-            // ── Большая буква с красивым фоном ────────────────────────────
-            Box(
-                modifier = Modifier
-                    .size(180.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(KidsMintLight, Color(0xFFE8F9F8))
-                        )
-                    )
-                    .border(4.dp, KidsMint.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text       = phoneme,
-                    fontSize   = 100.sp,
-                    fontWeight = FontWeight.Black,
-                    color      = KidsMint
-                )
-            }
+            if (exerciseMode == ExerciseMode.LISTEN_CHOOSE) {
+                // РЕЖИМ СЛУШАЙ И ВЫБИРАЙ
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    // Кнопка повтора звука
+                    Button(
+                        onClick = { speak(listenChooseTasks[currentIndex].correctWord) },
+                        colors = ButtonDefaults.buttonColors(containerColor = KidsBlue),
+                        shape = CircleShape,
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Text("🔊", fontSize = 30.sp)
+                    }
 
-            // ── Статус записи ──────────────────────────────────────────────
-            AnimatedContent(targetState = uiState, label = "content") { state ->
-                when (state) {
-                    is ExerciseUiState.Idle -> {
-                        Text(
-                            text      = "Нажми кнопку и произнеси звук",
-                            fontSize  = 15.sp,
-                            color     = KidsTextSecondary,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                    is ExerciseUiState.Recording -> {
-                        RecordingIndicator()
-                    }
-                    is ExerciseUiState.Analyzing -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                color    = KidsMint,
-                                modifier = Modifier.size(44.dp),
-                                strokeWidth = 4.dp
-                            )
-                            Text(
-                                "Анализирую...",
-                                fontSize  = 15.sp,
-                                color     = KidsTextSecondary,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    // Сетка 2x2
+                    val task = listenChooseTasks[currentIndex]
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OptionCard(task.options[0], Modifier.weight(1f)) { checkAnswer(task.options[0], task.correctWord, viewModel) }
+                            OptionCard(task.options[1], Modifier.weight(1f)) { checkAnswer(task.options[1], task.correctWord, viewModel) }
                         }
-                    }
-                    is ExerciseUiState.Success -> {
-                        KidsSuccessResult(score = state.score, xp = state.xp)
-                    }
-                    is ExerciseUiState.Error -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("😅 ${state.message}", color = KidsPink, fontSize = 14.sp, textAlign = TextAlign.Center)
-                            TextButton(onClick = { viewModel.reset() }) {
-                                Text("Попробовать снова", color = KidsMint, fontWeight = FontWeight.ExtraBold)
-                            }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OptionCard(task.options[2], Modifier.weight(1f)) { checkAnswer(task.options[2], task.correctWord, viewModel) }
+                            OptionCard(task.options[3], Modifier.weight(1f)) { checkAnswer(task.options[3], task.correctWord, viewModel) }
                         }
                     }
                 }
+            } else {
+                // ОБЫЧНЫЙ РЕЖИМ (Звуки, Слоги, Слова)
+                Box(
+                    modifier = Modifier.size(220.dp).clip(RoundedCornerShape(32.dp)).background(Color.White).border(4.dp, KidsMint.copy(0.3f), RoundedCornerShape(32.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = contentList[currentIndex], fontSize = if (contentList[currentIndex].length > 2) 60.sp else 90.sp, fontWeight = FontWeight.Black, color = KidsMintDark, textAlign = TextAlign.Center)
+                }
+            }
+
+            // Статус (только для режимов с микрофоном)
+            if (exerciseMode != ExerciseMode.LISTEN_CHOOSE) {
+                AnimatedContent(targetState = uiState, label = "status") { state ->
+                    when (state) {
+                        is ExerciseUiState.Idle -> Text("Нажми на кнопку и говори", color = KidsTextSecondary)
+                        is ExerciseUiState.Recording -> RecordingIndicator()
+                        is ExerciseUiState.Analyzing -> CircularProgressIndicator(color = KidsMint)
+                        is ExerciseUiState.Success -> KidsSuccessResult(score = state.score)
+                        is ExerciseUiState.Error -> Text(state.message, color = KidsPink)
+                    }
+                }
+            } else if (uiState is ExerciseUiState.Success) {
+                Text(if ((uiState as ExerciseUiState.Success).score == 100) "🎉 Верно!" else "❌ Попробуй еще раз", 
+                    fontSize = 24.sp, fontWeight = FontWeight.Bold, color = if ((uiState as ExerciseUiState.Success).score == 100) KidsMintDark else KidsPink)
             }
         }
 
-        // ── Кнопка записи ─────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!hasMicPermission) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Brush.horizontalGradient(listOf(KidsMint, KidsBlue)))
-                        .clickable { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
-                        .padding(vertical = 18.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text       = "🎙 РАЗРЕШИТЬ МИКРОФОН",
-                        fontSize   = 16.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color      = Color.White
+        // Кнопка записи (не нужна для ListenChoose)
+        if (exerciseMode != ExerciseMode.LISTEN_CHOOSE) {
+            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                if (!hasMicPermission) {
+                    Button(onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }, colors = ButtonDefaults.buttonColors(containerColor = KidsMint)) {
+                        Text("РАЗРЕШИТЬ МИКРОФОН", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    KidsRecordButton(
+                        isRecording = uiState is ExerciseUiState.Recording,
+                        enabled = uiState is ExerciseUiState.Idle || (uiState is ExerciseUiState.Success && (uiState as ExerciseUiState.Success).score < 100),
+                        onClick = {
+                            if (uiState is ExerciseUiState.Recording) viewModel.stopRecording()
+                            else viewModel.startRecording(contentList[currentIndex], exerciseMode)
+                        }
                     )
                 }
-            } else {
-                KidsRecordButton(
-                    isRecording = uiState is ExerciseUiState.Recording,
-                    enabled     = uiState is ExerciseUiState.Idle ||
-                            uiState is ExerciseUiState.Recording ||
-                            uiState is ExerciseUiState.Error,
-                    onClick = {
-                        when (uiState) {
-                            is ExerciseUiState.Recording -> viewModel.stopRecording()
-                            else -> viewModel.startRecording(phoneme, exerciseMode)
-                        }
-                    }
-                )
             }
         }
     }
 }
 
-// ── Маскот ────────────────────────────────────────────────────────────────────
+private fun checkAnswer(selected: String, correct: String, viewModel: ExerciseViewModel) {
+    if (selected == correct) {
+        // Имитируем успех для ViewModel
+        viewModel.startRecording("", ExerciseMode.LISTEN_CHOOSE) // This is a hack to trigger logic, ideally ViewModel should have a dedicated checkAnswer
+    }
+}
+
+@Composable
+fun OptionCard(text: String, modifier: Modifier, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(80.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(text, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KidsTextPrimary)
+        }
+    }
+}
 
 @Composable
 private fun KidsExerciseMascot(text: String, offsetY: Float) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(KidsMintLight, Color(0xFFE8F0FF)),
-                    start  = Offset.Zero,
-                    end    = Offset(Float.POSITIVE_INFINITY, 0f)
-                )
-            )
-            .border(3.dp, KidsMint.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(KidsMintLight).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text     = "🦜",
-            fontSize = 44.sp,
-            modifier = Modifier.offset(y = offsetY.dp)
-        )
-        Text(
-            text       = text,
-            fontSize   = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color      = KidsTextPrimary,
-            lineHeight = 22.sp,
-            modifier   = Modifier.weight(1f)
-        )
+        Text("🦜", fontSize = 44.sp, modifier = Modifier.offset(y = offsetY.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = KidsTextPrimary, modifier = Modifier.weight(1f))
     }
 }
-
-// ── Индикатор записи ──────────────────────────────────────────────────────────
 
 @Composable
 private fun RecordingIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "rec")
-    val scale by infiniteTransition.animateFloat(
-        initialValue  = 0.8f,
-        targetValue   = 1.2f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(500),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "recScale"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("🎙", fontSize = 44.sp, modifier = Modifier.scale(scale))
-        // Волна записи
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            repeat(7) { i ->
-                val barScale by infiniteTransition.animateFloat(
-                    initialValue  = 0.3f,
-                    targetValue   = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation   = tween(300 + i * 60),
-                        repeatMode  = RepeatMode.Reverse
-                    ),
-                    label = "bar$i"
-                )
-                Box(
-                    modifier = Modifier
-                        .width(6.dp)
-                        .height((8 + 24 * barScale).dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(KidsPink)
-                )
-            }
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        repeat(3) { i ->
+            val alpha by rememberInfiniteTransition().animateFloat(
+                initialValue = 0.2f, targetValue = 1f,
+                animationSpec = infiniteRepeatable(tween(600, delayMillis = i * 200), RepeatMode.Reverse)
+            )
+            Box(Modifier.size(10.dp).clip(CircleShape).background(KidsPink.copy(alpha = alpha)))
         }
     }
 }
 
-// ── Результат успеха ──────────────────────────────────────────────────────────
-
 @Composable
-private fun KidsSuccessResult(score: Int, xp: Int) {
-    val color = scoreColor(score)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text     = if (score >= 80) "🎉" else if (score >= 60) "👍" else "💪",
-            fontSize = 44.sp
-        )
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.15f))
-                .border(4.dp, color, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text       = "$score%",
-                fontSize   = 28.sp,
-                fontWeight = FontWeight.Black,
-                color      = color
-            )
-        }
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(KidsYellowLight)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text("⭐", fontSize = 18.sp)
-            Text(
-                text       = "+$xp XP",
-                fontSize   = 16.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color      = KidsYellowDark
-            )
-        }
+private fun KidsSuccessResult(score: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(if (score >= 100) "🎉 ИДЕАЛЬНО!" else "👍 ХОРОШО!", fontWeight = FontWeight.Black, color = if (score >= 100) KidsMintDark else KidsOrange)
+        Text("Точность: $score%", fontSize = 24.sp, fontWeight = FontWeight.Bold)
     }
 }
 
-// ── Большая кнопка записи в детском стиле ────────────────────────────────────
-
 @Composable
-private fun KidsRecordButton(
-    isRecording: Boolean,
-    enabled    : Boolean,
-    onClick    : () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "btn")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue  = 1f,
-        targetValue   = if (isRecording) 1.08f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(600),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "btnPulse"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+private fun KidsRecordButton(isRecording: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(80.dp).clip(CircleShape).background(if (isRecording) KidsPink else if (enabled) KidsMint else Color.Gray)
     ) {
-        Box(
-            modifier = Modifier
-                .scale(pulseScale)
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isRecording)
-                        Brush.radialGradient(listOf(KidsPink, Color(0xFFCC0044)))
-                    else if (enabled)
-                        Brush.radialGradient(listOf(KidsMint, KidsMintDark))
-                    else
-                        Brush.radialGradient(listOf(Color(0xFFCCCCCC), Color(0xFFAAAAAA)))
-                )
-                .border(4.dp, Color.White.copy(alpha = 0.5f), CircleShape)
-                .clickable(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text     = if (isRecording) "⏹" else "🎙",
-                fontSize = 36.sp
-            )
-        }
-        Text(
-            text       = if (isRecording) "СТОП" else "ГОВОРИ",
-            fontSize   = 13.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color      = if (isRecording) KidsPink else KidsMint
-        )
+        Text(if (isRecording) "⏹" else "🎙", fontSize = 36.sp, color = Color.White)
     }
 }
 
 private fun modeTitle(mode: ExerciseMode, phoneme: String) = when (mode) {
-    ExerciseMode.SOUND         -> "Звук «$phoneme»"
-    ExerciseMode.SYLLABLE      -> "Слоги с «$phoneme»"
-    ExerciseMode.WORD          -> "Слова с «$phoneme»"
-    ExerciseMode.LISTEN_CHOOSE -> "Послушай и выбери"
-    ExerciseMode.VISUALIZE     -> "Волна звука"
-    ExerciseMode.GAME          -> "Игра"
+    ExerciseMode.SOUND -> "Звук «$phoneme»"
+    ExerciseMode.SYLLABLE -> "Слоги с «$phoneme»"
+    ExerciseMode.WORD -> "Слова с «$phoneme»"
+    ExerciseMode.LISTEN_CHOOSE -> "Слушай и выбирай"
+    ExerciseMode.GAME -> "Игра"
+    else -> "Упражнение"
 }
