@@ -3,6 +3,7 @@ package com.example.soyle.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.soyle.domain.model.Exercise
+import com.example.soyle.domain.model.ExerciseMode
 import com.example.soyle.domain.model.UserProgress
 import com.example.soyle.domain.usecase.GetDailyExercises
 import com.example.soyle.domain.repository.SpeechRepository
@@ -14,21 +15,25 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// ── UI State ──────────────────────────────────────────────────────────────────
+
 data class HomeUiState(
-    val isLoading     : Boolean        = false,
-    val userName      : String         = "Малыш",
-    val currentStreak : Int            = 0,
-    val longestStreak : Int            = 0,
-    val totalXp       : Int            = 0,
-    val level         : Int            = 1,
-    val xpToNextLevel : Int            = 500,
-    val xpProgress    : Float          = 0f,
-    val exercises     : List<Exercise> = emptyList(),
-    val todayDone     : Int            = 0,
-    val todayTotal    : Int            = 5,
-    val greeting      : String         = "Привет! Пора тренироваться! 🦉",
-    val error         : String?        = null
+    val isLoading        : Boolean        = true,
+    val userName         : String         = "Малыш",
+    val currentStreak    : Int            = 0,
+    val longestStreak    : Int            = 0,
+    val totalXp          : Int            = 0,
+    val level            : Int            = 1,
+    val xpToNextLevel    : Int            = 500,
+    val xpProgress       : Float         = 0f,          // 0.0–1.0
+    val exercises        : List<Exercise> = emptyList(),
+    val todayDone        : Int            = 0,
+    val todayTotal       : Int            = 5,
+    val greeting         : String         = "Привет! 👋",
+    val error            : String?        = null
 )
+
+// ── ViewModel ─────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -39,64 +44,61 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState = _uiState.asStateFlow()
 
-    private val userId = "current_user"
+    private val userId = "current_user"   // TODO: UserSession
 
     init {
-        loadExercises()
-        observeProgress()
+        loadData()
     }
 
-    private fun loadExercises() {
+    private fun loadData() {
         viewModelScope.launch {
+            // Загружаем упражнения
             try {
                 val exercises = getDailyExercises(userId)
-                _uiState.update { it.copy(exercises = exercises) }
+                _uiState.update { it.copy(exercises = exercises, isLoading = false) }
             } catch (e: Exception) {
-                // Показываем пустой список, но не крашим приложение
-                _uiState.update { it.copy(exercises = emptyList()) }
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
-        }
-    }
 
-    private fun observeProgress() {
-        viewModelScope.launch {
-            try {
-                repository.getUserProgress(userId)
-                    .catch { /* ошибка DB — игнорируем, показываем дефолт */ }
-                    .collect { progress ->
-                        val xpInLevel = progress.totalXp % 500
-                        _uiState.update { state ->
-                            state.copy(
-                                currentStreak = progress.currentStreak,
-                                longestStreak = progress.longestStreak,
-                                totalXp       = progress.totalXp,
-                                level         = progress.level,
-                                xpProgress    = xpInLevel / 500f,
-                                xpToNextLevel = 500 - xpInLevel,
-                                greeting      = buildGreeting(progress)
-                            )
-                        }
+            // Подписываемся на прогресс (Flow)
+            repository.getUserProgress(userId)
+                .catch { e ->
+                    _uiState.update { it.copy(error = e.message) }
+                }
+                .collect { progress ->
+                    _uiState.update { state ->
+                        val xpInCurrentLevel = progress.totalXp % 500
+                        state.copy(
+                            currentStreak = progress.currentStreak,
+                            longestStreak = progress.longestStreak,
+                            totalXp       = progress.totalXp,
+                            level         = progress.level,
+                            xpProgress    = xpInCurrentLevel / 500f,
+                            xpToNextLevel = 500 - xpInCurrentLevel,
+                            greeting      = buildGreeting(progress)
+                        )
                     }
-            } catch (e: Exception) {
-                // Ошибка — просто оставляем дефолтные значения
-            }
+                }
         }
     }
 
-    fun refresh() = loadExercises()
+    fun refresh() {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        loadData()
+    }
 
     private fun buildGreeting(progress: UserProgress): String {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val time = when {
+        val timeGreeting = when {
             hour < 12 -> "Доброе утро"
             hour < 17 -> "Добрый день"
             else      -> "Добрый вечер"
         }
         return when {
-            progress.currentStreak >= 7 -> "$time! 🔥 Ты огонь — ${progress.currentStreak} дней подряд!"
-            progress.currentStreak >= 3 -> "$time! 💪 Уже ${progress.currentStreak} дня подряд!"
-            progress.currentStreak == 1 -> "$time! Отличное начало! 🌟"
-            else                        -> "$time! Пора тренироваться! 🦉"
+            progress.currentStreak >= 7 -> "$timeGreeting! 🔥 Ты огонь — ${progress.currentStreak} дней подряд!"
+            progress.currentStreak >= 3 -> "$timeGreeting! 💪 Уже ${progress.currentStreak} дня подряд!"
+            progress.currentStreak == 1 -> "$timeGreeting! Отличное начало! 🌟"
+            else                        -> "$timeGreeting! Пора тренироваться! 🦉"
         }
     }
 }

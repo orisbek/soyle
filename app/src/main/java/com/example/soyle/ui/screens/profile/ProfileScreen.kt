@@ -16,153 +16,177 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
 
 @Composable
-fun ProfileScreen(onBack: () -> Unit) {
-    val level         = 4
-    val totalXp       = 1820
+fun ProfileScreen(
+    onBack: () -> Unit,
+    onOpenHome: () -> Unit,
+    onOpenProgress: () -> Unit,
+    viewModel: ProfileViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    
+    val profile = uiState.profile
+    val level         = profile?.level ?: 1
+    val totalXp       = profile?.totalXp ?: 0
     val xpInLevel     = totalXp % 500
-    val currentStreak = 3
-    val longestStreak = 7
+    val currentStreak = 0 
+    val longestStreak = 0
 
-    // Анимация XP-бара
     val animatedXp by animateFloatAsState(
         targetValue   = xpInLevel / 500f,
         animationSpec = tween(1000, easing = FastOutSlowInEasing),
         label         = "xpBar"
     )
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(KidsBg)
-    ) {
-        // ── Шапка ─────────────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(KidsOrange, KidsPink)))
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-        ) {
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(0.25f))
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("←", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black)
-                }
-                Spacer(Modifier.width(14.dp))
-                Text(
-                    text       = "👦 Профиль",
-                    fontSize   = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = Color.White
-                )
-            }
+    Scaffold(
+        containerColor = KidsBg,
+        bottomBar = {
+            KidsFloatingBottomBar(
+                currentRoute = "profile",
+                onHome     = onOpenHome,
+                onProgress = onOpenProgress,
+                onProfile  = {}
+            )
         }
-
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(bottom = padding.calculateBottomPadding())
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(4.dp))
-
-            // ── Карточка аватара ───────────────────────────────────────────
-            Column(
+            // ── Шапка ─────────────────────────────────────────────────────────
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White)
-                    .border(2.dp, KidsBorder, RoundedCornerShape(24.dp))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .background(Brush.horizontalGradient(listOf(KidsOrange, KidsPink)))
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                // Аватар
-                Box(
-                    modifier = Modifier
-                        .size(90.dp)
-                        .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(KidsMintLight, KidsBlueLight)))
-                        .border(4.dp, KidsMint, CircleShape),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier          = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🦜", fontSize = 48.sp)
-                }
-                Text("Малыш", fontWeight = FontWeight.Black, fontSize = 22.sp, color = KidsTextPrimary)
-
-                // Уровень-бейдж
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(KidsPurple.copy(0.15f))
-                        .border(2.dp, KidsPurple, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text       = "✦ Уровень $level",
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color      = KidsPurple
-                    )
-                }
-
-                // XP бар
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("$xpInLevel XP", fontSize = 12.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
-                        Text("500 XP", fontSize = 12.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
-                    }
                     Box(
                         modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(0.25f))
+                            .clickable(onClick = onBack),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("←", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        text       = "👦 Профиль",
+                        fontSize   = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color      = Color.White
+                    )
+                }
+            }
+
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    CircularProgressIndicator(color = KidsMint)
+                }
+            } else {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Spacer(Modifier.height(4.dp))
+
+                    // ── Карточка аватара ───────────────────────────────────────────
+                    Column(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .height(14.dp)
-                            .clip(RoundedCornerShape(7.dp))
-                            .background(Color(0xFFEEEEEE))
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White)
+                            .border(2.dp, KidsBorder, RoundedCornerShape(24.dp))
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(animatedXp)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(7.dp))
-                                .background(Brush.horizontalGradient(listOf(KidsPurple, KidsBlue)))
-                        )
+                                .size(90.dp)
+                                .clip(CircleShape)
+                                .background(Brush.radialGradient(listOf(KidsMintLight, KidsBlueLight)))
+                                .border(4.dp, KidsMint, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🦜", fontSize = 48.sp)
+                        }
+                        Text(profile?.name ?: "Малыш", fontWeight = FontWeight.Black, fontSize = 22.sp, color = KidsTextPrimary)
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(KidsPurple.copy(0.15f))
+                                .border(2.dp, KidsPurple, RoundedCornerShape(20.dp))
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text       = "✦ Уровень $level",
+                                fontSize   = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color      = KidsPurple
+                            )
+                        }
+
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier              = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("$xpInLevel XP", fontSize = 12.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
+                                Text("500 XP", fontSize = 12.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(14.dp)
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0xFFEEEEEE))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(animatedXp)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(7.dp))
+                                        .background(Brush.horizontalGradient(listOf(KidsPurple, KidsBlue)))
+                                )
+                            }
+                        }
                     }
+
+                    // ── Серия ─────────────────────────────────────────────────────
+                    KidsSectionTitle("🔥 Серия дней")
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        KidsStreakTile("🔥", "$currentStreak",             "Текущая",  KidsOrange, Modifier.weight(1f))
+                        KidsStreakTile("🏆", "$longestStreak",             "Рекорд",   KidsYellow, Modifier.weight(1f))
+                        KidsStreakTile("⭐", "${7 - currentStreak % 7}",   "До награды", KidsPurple, Modifier.weight(1f))
+                    }
+
+                    // ── Маскоты ───────────────────────────────────────────────────
+                    KidsSectionTitle("🦜 Маскоты")
+                    KidsMascotGallery(currentLevel = level)
+
+                    // ── Настройки ─────────────────────────────────────────────────
+                    KidsSectionTitle("⚙️ Настройки")
+                    KidsSettingsCard()
+
+                    Spacer(Modifier.height(20.dp))
                 }
             }
-
-            // ── Серия ─────────────────────────────────────────────────────
-            KidsSectionTitle("🔥 Серия дней")
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                KidsStreakTile("🔥", "$currentStreak",             "Текущая",  KidsOrange, Modifier.weight(1f))
-                KidsStreakTile("🏆", "$longestStreak",             "Рекорд",   KidsYellow, Modifier.weight(1f))
-                KidsStreakTile("⭐", "${7 - currentStreak % 7}",   "До награды", KidsPurple, Modifier.weight(1f))
-            }
-
-            // ── Маскоты ───────────────────────────────────────────────────
-            KidsSectionTitle("🦜 Маскоты")
-            KidsMascotGallery(currentLevel = level)
-
-            // ── Настройки ─────────────────────────────────────────────────
-            KidsSectionTitle("⚙️ Настройки")
-            KidsSettingsCard()
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }

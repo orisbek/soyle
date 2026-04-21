@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -22,20 +23,67 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.soyle.ui.theme.*
 
+/**
+ * Плавающее нижнее меню "Островок"
+ */
+@Composable
+fun KidsFloatingBottomBar(
+    currentRoute: String,
+    onHome: () -> Unit,
+    onProgress: () -> Unit,
+    onProfile: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .height(72.dp)
+            .shadow(12.dp, RoundedCornerShape(36.dp))
+            .background(Color.White, RoundedCornerShape(36.dp))
+            .border(2.dp, KidsBorder.copy(alpha = 0.5f), RoundedCornerShape(36.dp))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BottomItem("🏠", "Главная", currentRoute == "home", onHome)
+            BottomItem("📊", "Прогресс", currentRoute == "progress", onProgress)
+            BottomItem("👦", "Профиль", currentRoute == "profile", onProfile)
+        }
+    }
+}
+
+@Composable
+private fun BottomItem(
+    icon: String,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(if (isSelected) KidsMintLight else Color.Transparent, label = "bg")
+    val textColor by animateColorAsState(if (isSelected) KidsMintDark else KidsTextSecondary, label = "text")
+
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(icon, fontSize = 24.sp)
+        if (isSelected) {
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. DuoButton — главная кнопка с 3D-эффектом (тень снизу)
+// DuoButton — главная кнопка с 3D-эффектом (тень снизу)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Основная кнопка в стиле Duolingo.
- * - Активная: ярко-зелёная с тёмно-зелёной «тенью» снизу
- * - Неактивная: серая
- *
- * Использование:
- * ```
- * DuoButton(text = "ПРОДОЛЖИТЬ", enabled = canContinue) { onContinue() }
- * ```
- */
 @Composable
 fun DuoButton(
     text     : String,
@@ -55,14 +103,12 @@ fun DuoButton(
             .clip(RoundedCornerShape(16.dp))
             .clickable(enabled = enabled) { onClick() }
     ) {
-        // Тень (3D-эффект снизу)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset(y = 4.dp)
                 .background(shadowClr, RoundedCornerShape(16.dp))
         )
-        // Основная кнопка
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -79,10 +125,6 @@ fun DuoButton(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. DuoOutlineButton — вторичная кнопка (белая с обводкой)
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun DuoOutlineButton(
@@ -109,25 +151,6 @@ fun DuoOutlineButton(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. DuoChoiceCard — карточка выбора (как в Duolingo)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Карточка с вариантом ответа.
- * - Обычная: белый фон, серая обводка
- * - Выбранная: голубой фон, синяя обводка, синий текст
- *
- * Использование:
- * ```
- * DuoChoiceCard(
- *     text = "Звук «Р»",
- *     emoji = "🔤",
- *     isSelected = selected == "Р",
- *     onClick = { selected = "Р" }
- * )
- * ```
- */
 @Composable
 fun DuoChoiceCard(
     text       : String,
@@ -175,18 +198,6 @@ fun DuoChoiceCard(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. DuoProgressBar — прогресс-бар сверху экрана (как в Duolingo)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Зелёный прогресс-бар вверху экрана.
- *
- * Использование:
- * ```
- * DuoProgressBar(progress = 0.4f) // 40%
- * ```
- */
 @Composable
 fun DuoProgressBar(
     progress : Float,           // 0.0 – 1.0
@@ -214,18 +225,6 @@ fun DuoProgressBar(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. DuoMascotSpeech — маскот с речевым пузырём
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Маскот (совёнок) с пузырём речи слева или справа.
- *
- * Использование:
- * ```
- * DuoMascotSpeech(text = "Скажи звук «Р»!")
- * ```
- */
 @Composable
 fun DuoMascotSpeech(
     text     : String,
@@ -236,7 +235,6 @@ fun DuoMascotSpeech(
         modifier          = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Маскот
         Box(
             modifier = Modifier
                 .size(72.dp)
@@ -245,24 +243,11 @@ fun DuoMascotSpeech(
         ) {
             Text(mascotEmoji, fontSize = 42.sp)
         }
-
         Spacer(Modifier.width(12.dp))
-
-        // Речевой пузырь
         Box(
             modifier = Modifier
-                .background(DuoWhite, RoundedCornerShape(
-                    topStart    = 4.dp,
-                    topEnd      = 16.dp,
-                    bottomEnd   = 16.dp,
-                    bottomStart = 16.dp
-                ))
-                .border(2.dp, DuoBorder, RoundedCornerShape(
-                    topStart    = 4.dp,
-                    topEnd      = 16.dp,
-                    bottomEnd   = 16.dp,
-                    bottomStart = 16.dp
-                ))
+                .background(DuoWhite, RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
+                .border(2.dp, DuoBorder, RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
@@ -275,10 +260,6 @@ fun DuoMascotSpeech(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. DuoXpBadge — бейдж с XP очками
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun DuoXpBadge(xp: Int, modifier: Modifier = Modifier) {
@@ -299,10 +280,6 @@ fun DuoXpBadge(xp: Int, modifier: Modifier = Modifier) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. DuoStreakBadge — бейдж серии дней
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun DuoStreakBadge(streak: Int, modifier: Modifier = Modifier) {
     Row(
@@ -322,10 +299,6 @@ fun DuoStreakBadge(streak: Int, modifier: Modifier = Modifier) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. DuoHeartRow — жизни в виде сердечек
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun DuoHeartRow(lives: Int, maxLives: Int = 3, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -337,10 +310,6 @@ fun DuoHeartRow(lives: Int, maxLives: Int = 3, modifier: Modifier = Modifier) {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 9. DuoScoreCircle — круговой индикатор результата
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun DuoScoreCircle(
@@ -389,10 +358,6 @@ private fun scoreLabel(score: Int) = when {
     else        -> "Ещё раз 💪"
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. DuoLevelBadge — бейдж уровня
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun DuoLevelBadge(level: Int, modifier: Modifier = Modifier) {
     val color = levelColor(level)
@@ -412,10 +377,6 @@ fun DuoLevelBadge(level: Int, modifier: Modifier = Modifier) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 11. DuoSectionHeader — заголовок секции
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun DuoSectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(
@@ -427,13 +388,9 @@ fun DuoSectionHeader(title: String, modifier: Modifier = Modifier) {
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 12. DuoTopBar — верхняя панель с прогресс-баром и кнопкой назад
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun DuoTopBar(
-    progress    : Float? = null,   // null = не показывать прогресс-бар
+    progress    : Float? = null,
     onBack      : (() -> Unit)? = null,
     trailing    : @Composable (() -> Unit)? = null,
     modifier    : Modifier = Modifier
@@ -450,16 +407,11 @@ fun DuoTopBar(
             } else {
                 Spacer(Modifier.size(40.dp))
             }
-
             if (progress != null) {
-                DuoProgressBar(
-                    progress = progress,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                )
+                DuoProgressBar(progress = progress, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
             } else {
                 Spacer(Modifier.weight(1f))
             }
-
             if (trailing != null) {
                 trailing()
             } else {

@@ -16,94 +16,116 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.soyle.domain.model.Achievement
+import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
 
 @Composable
-fun ProgressScreen(onBack: () -> Unit) {
+fun ProgressScreen(
+    onBack: () -> Unit,
+    onOpenHome: () -> Unit,
+    onOpenProfile: () -> Unit,
+    viewModel: ProgressViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
 
-    val phonemes = remember {
-        listOf(
-            Triple("Р", 72f, 34),
-            Triple("Л", 58f, 21),
-            Triple("Ш", 85f, 15),
-            Triple("З", 41f,  9),
-        )
-    }
-    val weekData = remember {
-        listOf("Пн" to 55f, "Вт" to 62f, "Ср" to 58f,
-            "Чт" to 70f, "Пт" to 72f, "Сб" to 68f, "Вс" to 75f)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(KidsBg)
-    ) {
-        // ── Шапка ─────────────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(KidsPurple, KidsBlue)))
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-        ) {
-            Row(
-                modifier          = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(0.25f))
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("←", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black)
-                }
-                Spacer(Modifier.width(14.dp))
-                Text(
-                    text       = "📊 Мой прогресс",
-                    fontSize   = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color      = Color.White
-                )
-            }
+    Scaffold(
+        containerColor = KidsBg,
+        bottomBar = {
+            KidsFloatingBottomBar(
+                currentRoute = "progress",
+                onHome = onOpenHome,
+                onProgress = {},
+                onProfile = onOpenProfile
+            )
         }
-
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(bottom = padding.calculateBottomPadding())
         ) {
-            Spacer(Modifier.height(4.dp))
-
-            // ── Плитки статистики ──────────────────────────────────────────
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // ── Шапка ─────────────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Brush.horizontalGradient(listOf(KidsPurple, KidsBlue)))
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                KidsStatTile("🏋️", "79",   "тренировок", KidsMint,   Modifier.weight(1f))
-                KidsStatTile("🔥", "5 дн.", "серия",      KidsOrange, Modifier.weight(1f))
-                KidsStatTile("⭐", "69%",   "ср. оценка", KidsPurple, Modifier.weight(1f))
+                Row(
+                    modifier          = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(0.25f))
+                            .clickable(onClick = onBack),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("←", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        text       = "📊 Мой прогресс",
+                        fontSize   = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color      = Color.White
+                    )
+                }
             }
 
-            // ── График недели ──────────────────────────────────────────────
-            KidsSectionTitle("📅 Последние 7 дней")
-            KidsWeekChart(data = weekData)
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    CircularProgressIndicator(color = KidsPurple)
+                }
+            } else {
+                val progress = uiState.progress
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Spacer(Modifier.height(4.dp))
 
-            // ── Прогресс по звукам ─────────────────────────────────────────
-            KidsSectionTitle("🔤 Звуки")
-            phonemes.forEach { (phoneme, score, attempts) ->
-                KidsPhonemeCard(phoneme = phoneme, score = score, attempts = attempts)
+                    // ── Плитки статистики ──────────────────────────────────────────
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        KidsStatTile("🏋️", "${progress?.totalSessions ?: 0}", "тренировок", KidsMint, Modifier.weight(1f))
+                        KidsStatTile("🔥", "${progress?.currentStreak ?: 0} дн.", "серия", KidsOrange, Modifier.weight(1f))
+                        val avgScore = progress?.phonemeScores?.values?.average()?.toInt() ?: 0
+                        KidsStatTile("⭐", "$avgScore%", "ср. оценка", KidsPurple, Modifier.weight(1f))
+                    }
+
+                    // ── Прогресс по звукам ─────────────────────────────────────────
+                    KidsSectionTitle("🔤 Мои звуки")
+                    if (progress?.phonemeScores.isNullOrEmpty()) {
+                        Text(
+                            "Здесь появится прогресс после первых занятий!",
+                            color = KidsTextSecondary,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
+                        )
+                    } else {
+                        progress?.phonemeScores?.forEach { (phoneme, score) ->
+                            KidsPhonemeCard(phoneme = phoneme, score = score, attempts = 0)
+                        }
+                    }
+
+                    // ── Достижения ─────────────────────────────────────────────────
+                    KidsSectionTitle("🏆 Достижения")
+                    KidsAchievements(progress?.achievements ?: emptyList())
+
+                    Spacer(Modifier.height(20.dp))
+                }
             }
-
-            // ── Достижения ─────────────────────────────────────────────────
-            KidsSectionTitle("🏆 Достижения")
-            KidsAchievements()
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -132,47 +154,6 @@ private fun KidsStatTile(emoji: String, value: String, label: String, color: Col
         Text(emoji, fontSize = 24.sp)
         Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
         Text(label, fontSize = 10.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun KidsWeekChart(data: List<Pair<String, Float>>) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .border(2.dp, KidsBorder, RoundedCornerShape(20.dp))
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier              = Modifier.fillMaxWidth().height(90.dp),
-            verticalAlignment     = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            data.forEach { (day, score) ->
-                val animatedH by animateFloatAsState(
-                    targetValue   = score / 100f * 70f,
-                    animationSpec = tween(800, easing = FastOutSlowInEasing),
-                    label         = "bar$day"
-                )
-                val barColor = scoreColor(score.toInt())
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(22.dp)
-                            .height(animatedH.dp)
-                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                            .background(barColor)
-                    )
-                    Spacer(Modifier.height(5.dp))
-                    Text(day, fontSize = 10.sp, color = KidsTextSecondary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
     }
 }
 
@@ -242,43 +223,33 @@ private fun KidsPhonemeCard(phoneme: String, score: Float, attempts: Int) {
                         .background(Brush.horizontalGradient(listOf(color.copy(0.7f), color)))
                 )
             }
-            Text(
-                text       = "$attempts занятий",
-                fontSize   = 11.sp,
-                color      = KidsTextSecondary,
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 }
 
 @Composable
-private fun KidsAchievements() {
-    val items = listOf(
-        Triple("🏆", "Первый звук",   true),
-        Triple("🔥", "3 дня подряд",  true),
-        Triple("⭐", "Оценка 90+",    false),
-        Triple("🎯", "10 тренировок", true),
-        Triple("💎", "7 дней подряд", false),
-        Triple("🦜", "Мастер Р",      false),
-    )
+private fun KidsAchievements(achievements: List<Achievement>) {
+    if (achievements.isEmpty()) {
+        Text("Тренируйся, чтобы открывать достижения!", color = KidsTextSecondary, fontSize = 12.sp)
+        return
+    }
 
-    items.chunked(3).forEach { row ->
+    achievements.chunked(3).forEach { row ->
         Row(
             modifier              = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            row.forEach { (emoji, title, unlocked) ->
+            row.forEach { achievement ->
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(18.dp))
                         .background(
-                            if (unlocked) KidsYellowLight else Color(0xFFF5F5F5)
+                            if (achievement.isUnlocked) KidsYellowLight else Color(0xFFF5F5F5)
                         )
                         .border(
                             2.dp,
-                            if (unlocked) KidsYellow else Color(0xFFE0E0E0),
+                            if (achievement.isUnlocked) KidsYellow else Color(0xFFE0E0E0),
                             RoundedCornerShape(18.dp)
                         )
                         .padding(12.dp),
@@ -286,18 +257,18 @@ private fun KidsAchievements() {
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text     = emoji,
+                        text     = achievement.id.take(2), // placeholder for icon
                         fontSize = 28.sp,
-                        color    = if (unlocked) Color.Unspecified else Color.Gray.copy(0.3f)
+                        color    = if (achievement.isUnlocked) Color.Unspecified else Color.Gray.copy(0.3f)
                     )
                     Text(
-                        text       = title,
+                        text       = achievement.title,
                         fontSize   = 10.sp,
-                        fontWeight = if (unlocked) FontWeight.ExtraBold else FontWeight.Normal,
-                        color      = if (unlocked) KidsTextPrimary else KidsTextDisabled,
+                        fontWeight = if (achievement.isUnlocked) FontWeight.ExtraBold else FontWeight.Normal,
+                        color      = if (achievement.isUnlocked) KidsTextPrimary else KidsTextDisabled,
                         textAlign  = TextAlign.Center
                     )
-                    if (unlocked) Text("✓", fontSize = 12.sp, color = KidsGreen, fontWeight = FontWeight.Black)
+                    if (achievement.isUnlocked) Text("✓", fontSize = 12.sp, color = KidsGreen, fontWeight = FontWeight.Black)
                 }
             }
             if (row.size < 3) repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }

@@ -4,8 +4,13 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +43,8 @@ fun HomeScreen(
     Scaffold(
         containerColor = KidsBg,
         bottomBar = {
-            KidsBottomBar(
+            KidsFloatingBottomBar(
+                currentRoute = "home",
                 onHome     = {},
                 onProgress = onOpenProgress,
                 onProfile  = onOpenProfile
@@ -48,7 +54,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(bottom = padding.calculateBottomPadding()) // Отступ только снизу
                 .verticalScroll(rememberScrollState())
         ) {
             // ── Красочная шапка с облачком ────────────────────────────────
@@ -74,28 +80,16 @@ fun HomeScreen(
                 // ── Упражнения сегодня ─────────────────────────────────────
                 KidsSectionTitle(title = "✨ Сегодня учим", emoji = "")
 
-                if (uiState.exercises.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(90.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(KidsMintLight),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Нажми на занятие ниже чтобы начать! 👇",
-                            color      = KidsMintDark,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize   = 14.sp
-                        )
+                if (uiState.isLoading) {
+                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = KidsMint, modifier = Modifier.size(40.dp))
                     }
                 } else {
-                    Row(
-                        modifier              = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding        = PaddingValues(end = 4.dp)
                     ) {
-                        uiState.exercises.take(6).forEach { exercise ->
+                        items(uiState.exercises.take(6)) { exercise ->
                             KidsExerciseCard(
                                 exercise = exercise,
                                 onClick  = { onStartExercise(exercise.phoneme, exercise.mode.name) }
@@ -385,7 +379,6 @@ private fun KidsModeList(onStartExercise: (String, String) -> Unit) {
         ModeItem(ExerciseMode.SYLLABLE,      "Слоги с Р",       "📝", KidsBlue,   KidsBlueLight),
         ModeItem(ExerciseMode.WORD,          "Слова с Р",       "🗣️", KidsPurple, Color(0xFFEDE7FF)),
         ModeItem(ExerciseMode.LISTEN_CHOOSE, "Слушай и выбирай","👂", KidsOrange, Color(0xFFFFEDD5)),
-        ModeItem(ExerciseMode.VISUALIZE,     "Волна звука",     "🌊", KidsGreen,  KidsGreenLight),
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -411,7 +404,7 @@ private fun KidsModeList(onStartExercise: (String, String) -> Unit) {
 
         // Собери слово
         KidsModeCard(
-            item = ModeItem(ExerciseMode.WORD, "Собери слово!  (50 уровней)", "🔤", KidsOrange, Color(0xFFFFEDD5))
+            item = ModeItem(ExerciseMode.WORD, "Собери слово!", "🔤", KidsOrange, Color(0xFFFFEDD5))
         ) { onStartExercise("Р", "WORD_BUILDING") }
     }
 }
@@ -467,55 +460,13 @@ private fun KidsModeCard(item: ModeItem, onClick: () -> Unit) {
     }
 }
 
-// ── Нижняя навигация ─────────────────────────────────────────────────────────
-
-@Composable
-private fun KidsBottomBar(
-    onHome    : () -> Unit,
-    onProgress: () -> Unit,
-    onProfile : () -> Unit
-) {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 0.dp,
-        modifier       = Modifier.border(
-            width = 2.dp,
-            color = KidsBorder,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-        )
-    ) {
-        NavigationBarItem(
-            selected = true,
-            onClick  = onHome,
-            icon     = { Text("🏠", fontSize = 22.sp) },
-            label    = { Text("Главная", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-            colors   = NavigationBarItemDefaults.colors(
-                indicatorColor    = KidsMintLight,
-                selectedIconColor = KidsMint
-            )
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick  = onProgress,
-            icon     = { Text("📊", fontSize = 22.sp) },
-            label    = { Text("Прогресс", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick  = onProfile,
-            icon     = { Text("👦", fontSize = 22.sp) },
-            label    = { Text("Профиль", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
-        )
-    }
-}
-
 private fun modeEmoji(mode: ExerciseMode) = when (mode) {
     ExerciseMode.SOUND         -> "🔤"
     ExerciseMode.SYLLABLE      -> "📝"
     ExerciseMode.WORD          -> "🗣️"
     ExerciseMode.LISTEN_CHOOSE -> "👂"
-    ExerciseMode.VISUALIZE     -> "🌊"
     ExerciseMode.GAME          -> "🎮"
+    else -> "🎯"
 }
 
 private fun modeLabel(mode: ExerciseMode) = when (mode) {
@@ -523,6 +474,6 @@ private fun modeLabel(mode: ExerciseMode) = when (mode) {
     ExerciseMode.SYLLABLE      -> "Слог"
     ExerciseMode.WORD          -> "Слово"
     ExerciseMode.LISTEN_CHOOSE -> "Слушай"
-    ExerciseMode.VISUALIZE     -> "Волна"
     ExerciseMode.GAME          -> "Игра"
+    else -> "Задание"
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "481962955777",
+    "project_id": "soyle-133c9",
+    "storage_bucket": "soyle-133c9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:481962955777:android:ec37acc25ea60242471c00",
+        "android_client_info": {
+          "package_name": "com.example.soyle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuCmohZ4h5nQ0TPisPCXC2ivLlRrnhrkk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
