@@ -1,3 +1,5 @@
 package com.example.soyle.data.repository
 
-// Файл очищен после удаления Firebase
+// Зарезервировано для будущих расширений пользовательского репозитория.
+// Основная логика хранится в AuthRepository (регистрация / вход)
+// и SpeechRepositoryImpl (статистика через Firestore).

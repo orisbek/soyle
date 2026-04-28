@@ -1,5 +1,6 @@
 package com.example.soyle.di
 
+import com.example.soyle.BuildConfig
 import com.example.soyle.data.remote.SoyleApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -18,8 +19,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "http://192.168.33.27:8000/"
-
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
@@ -30,7 +29,10 @@ object NetworkModule {
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor =
         HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.ENABLE_HTTP_LOGGING)
+                HttpLoggingInterceptor.Level.BODY
+            else
+                HttpLoggingInterceptor.Level.NONE
         }
 
     @Provides
@@ -38,8 +40,8 @@ object NetworkModule {
     fun provideOkHttpClient(loggingInterceptor: HttpLoggingInterceptor): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)   // Whisper может обрабатывать до 10 сек
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
 
@@ -47,7 +49,7 @@ object NetworkModule {
     @Singleton
     fun provideSoyleApi(okHttpClient: OkHttpClient, moshi: Moshi): SoyleApi =
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)   // берём из build.gradle (debug/release)
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()

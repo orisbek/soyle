@@ -8,6 +8,7 @@ import com.example.soyle.data.local.dao.AttemptDao
 import com.example.soyle.data.local.entity.AttemptEntity
 import com.example.soyle.domain.AnalysisResult
 import com.example.soyle.domain.SpeechAnalyzer
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,9 +30,10 @@ sealed class PronunciationUiState {
 
 @HiltViewModel
 class PronunciationViewModel @Inject constructor(
-    private val speechManager: SpeechRecognitionManager,
+    private val speechManager : SpeechRecognitionManager,
     private val speechAnalyzer: SpeechAnalyzer,
-    private val attemptDao: AttemptDao
+    private val attemptDao    : AttemptDao,
+    private val auth          : FirebaseAuth
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PronunciationUiState>(PronunciationUiState.Idle)
@@ -83,7 +85,7 @@ class PronunciationViewModel @Inject constructor(
         viewModelScope.launch {
             attemptDao.insert(
                 AttemptEntity(
-                    userId = "student_user", // В реальном приложении берем из Session
+                    userId = auth.currentUser?.uid ?: "",
                     phoneme = expected,
                     mode = "SPEECH_PRACTICE",
                     score = analysis.score

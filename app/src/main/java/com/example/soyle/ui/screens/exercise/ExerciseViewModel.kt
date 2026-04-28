@@ -6,6 +6,7 @@ import com.example.soyle.audio.AudioRecorder
 import com.example.soyle.domain.model.ExerciseMode
 import com.example.soyle.domain.model.MascotEmotion
 import com.example.soyle.domain.usecase.AnalyzePronunciation
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,13 +29,14 @@ sealed class ExerciseUiState {
 @HiltViewModel
 class ExerciseViewModel @Inject constructor(
     private val audioRecorder        : AudioRecorder,
-    private val analyzePronunciation : AnalyzePronunciation
+    private val analyzePronunciation : AnalyzePronunciation,
+    private val auth                 : FirebaseAuth
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ExerciseUiState>(ExerciseUiState.Idle)
     val uiState = _uiState.asStateFlow()
 
-    private val userId = "current_user"
+    private val userId get() = auth.currentUser?.uid ?: ""
 
     fun startRecording(phoneme: String, mode: ExerciseMode) {
         if (_uiState.value is ExerciseUiState.Recording) return

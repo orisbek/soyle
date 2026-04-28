@@ -1,6 +1,5 @@
 package com.example.soyle.ui.screens.home
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -8,15 +7,19 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
 
@@ -24,7 +27,7 @@ import com.example.soyle.ui.theme.*
 
 data class Practice(
     val id      : String,
-    val icon    : String,
+    val icon    : ImageVector,
     val title   : String,
     val duration: String,
     val isNew   : Boolean  = false,
@@ -43,14 +46,17 @@ data class DailyTip(
 fun HomeScreen(
     onOpenCheckIn  : () -> Unit = {},
     onOpenExercise : (String) -> Unit = {},
-    onOpenProfile  : () -> Unit = {}
+    onOpenProfile  : () -> Unit = {},
+    viewModel      : HomeViewModel = hiltViewModel()
 ) {
-    // Состояние
-    val streak          = remember { 3 }
-    val checkedInToday  = remember { true }
-    val todayMood       = remember { "Хорошее настроение" }
-    val weekDays        = remember { listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс") }
-    val checkedDays     = remember { setOf(0) } // понедельник (сегодня)
+    val uiState by viewModel.uiState.collectAsState()
+
+    val streak         = uiState.currentStreak
+    val checkedInToday = uiState.currentStreak > 0
+    val weekDays       = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+    // Заполняем последние N дней по серии (упрощённо)
+    val checkedCount   = uiState.weekCheckedCount
+    val checkedDays    = (0 until checkedCount).toSet()
 
     val hour = remember {
         java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -63,12 +69,12 @@ fun HomeScreen(
 
     val practices = remember {
         listOf(
-            Practice("1", "😊", "Проверка\nнастроения",    "2 мин"),
-            Practice("2", "🗣️", "Упражнение\nс дыханием",  "5 мин"),
-            Practice("3", "🔤", "Звук «Р»\nпо слогам",     "7 мин"),
-            Practice("4", "📝", "Дневник\nречи",            "3 мин"),
-            Practice("5", "🎯", "Скороговорки",             "5 мин", isNew = true),
-            Practice("6", "🌙", "Итог дня",                 "3 мин", isLocked = false)
+            Practice("1", Icons.Outlined.Mood,             "Проверка\nнастроения",   "2 мин"),
+            Practice("2", Icons.Outlined.Air,              "Упражнение\nс дыханием", "5 мин"),
+            Practice("3", Icons.Outlined.RecordVoiceOver,  "Звук «Р»\nпо слогам",   "7 мин"),
+            Practice("4", Icons.Outlined.EditNote,         "Дневник\nречи",          "3 мин"),
+            Practice("5", Icons.Outlined.Speed,            "Скороговорки",           "5 мин", isNew = true),
+            Practice("6", Icons.Outlined.Summarize,        "Итог дня",               "3 мин")
         )
     }
 
@@ -97,11 +103,10 @@ fun HomeScreen(
             modifier            = Modifier.padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // ── Блок чек-ина (как в Stoic) ────────────────────────────────
+            // ── Блок чек-ина ──────────────────────────────────────────────
             Spacer(Modifier.height(20.dp))
             CheckInCard(
                 checked    = checkedInToday,
-                mood       = if (checkedInToday) todayMood else null,
                 weekDays   = weekDays,
                 checkedSet = checkedDays,
                 onClick    = onOpenCheckIn
@@ -120,11 +125,11 @@ fun HomeScreen(
                     fontSize   = 17.sp,
                     color      = SoyleTextPrimary
                 )
-                // Иконка настройки
-                Text(
-                    text     = "⚙",
-                    fontSize = 16.sp,
-                    color    = SoyleTextSecondary
+                Icon(
+                    imageVector        = Icons.Outlined.Settings,
+                    contentDescription = "Настройки",
+                    tint               = SoyleTextSecondary,
+                    modifier           = Modifier.size(18.dp)
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -149,15 +154,19 @@ fun HomeScreen(
                 }
             }
 
-            // ── Совет дня (как Ideas в Stoic) ────────────────────────────
+            // ── Совет дня ────────────────────────────────────────────────
             Spacer(Modifier.height(28.dp))
             DailyTipCard(tip = tip)
 
             // ── Статистика недели ─────────────────────────────────────────
             Spacer(Modifier.height(28.dp))
-            WeeklyStats(checkedDays = checkedDays)
+            WeeklyStats(
+                streak       = streak,
+                checkedDays  = checkedDays,
+                avgScore     = uiState.avgScore
+            )
 
-            Spacer(Modifier.height(100.dp)) // Отступ для нижнего nav
+            Spacer(Modifier.height(100.dp))
         }
     }
 }
@@ -173,7 +182,7 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically
     ) {
-        // Серия (streak) — как иконка огня в Stoic
+        // Серия (streak) — огонь только если streak > 0
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -182,17 +191,36 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🔥", fontSize = 10.sp)
-                Text(
-                    text       = "$streak",
-                    fontSize   = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = SoyleStreak
-                )
+                if (streak > 0) {
+                    Icon(
+                        imageVector        = Icons.Outlined.Whatshot,
+                        contentDescription = "Серия",
+                        tint               = SoyleStreak,
+                        modifier           = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text       = "$streak",
+                        fontSize   = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = SoyleStreak
+                    )
+                } else {
+                    Icon(
+                        imageVector        = Icons.Outlined.Whatshot,
+                        contentDescription = "Серия",
+                        tint               = SoyleTextMuted,
+                        modifier           = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text     = "0",
+                        fontSize = 10.sp,
+                        color    = SoyleTextMuted
+                    )
+                }
             }
         }
 
-        // Приветствие (как в Stoic — по центру)
+        // Приветствие
         Text(
             text       = greeting,
             fontWeight = FontWeight.Normal,
@@ -210,7 +238,12 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
                 .clickable(onClick = onProfile),
             contentAlignment = Alignment.Center
         ) {
-            Text("👤", fontSize = 18.sp)
+            Icon(
+                imageVector        = Icons.Outlined.Person,
+                contentDescription = "Профиль",
+                tint               = SoyleTextSecondary,
+                modifier           = Modifier.size(20.dp)
+            )
         }
     }
 }
@@ -220,7 +253,6 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
 @Composable
 private fun CheckInCard(
     checked    : Boolean,
-    mood       : String?,
     weekDays   : List<String>,
     checkedSet : Set<Int>,
     onClick    : () -> Unit
@@ -236,7 +268,6 @@ private fun CheckInCard(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (checked) {
-            // Завершённый чек-ин
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,9 +278,7 @@ private fun CheckInCard(
                     fontSize = 16.sp,
                     color    = SoyleTextMuted
                 )
-                if (mood != null) {
-                    SoyleTag(text = mood)
-                }
+                SoyleTag(text = "Активен")
             }
         } else {
             Text(
@@ -301,7 +330,14 @@ private fun WeekDayDot(day: String, isActive: Boolean, isToday: Boolean) {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            if (isActive) Text("🔥", fontSize = 12.sp)
+            if (isActive) {
+                Icon(
+                    imageVector        = Icons.Outlined.Whatshot,
+                    contentDescription = null,
+                    tint               = SoyleBg,
+                    modifier           = Modifier.size(14.dp)
+                )
+            }
         }
         Text(
             text     = day,
@@ -326,7 +362,6 @@ private fun PracticeCard(practice: Practice, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Иконка в кружке
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -334,14 +369,14 @@ private fun PracticeCard(practice: Practice, onClick: () -> Unit) {
                 .background(SoyleSurface2),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text     = practice.icon,
-                fontSize = 22.sp,
-                color    = if (practice.isLocked) Color(0xFF333333) else Color.Unspecified
+            Icon(
+                imageVector        = practice.icon,
+                contentDescription = practice.title,
+                tint               = if (practice.isLocked) SoyleTextMuted else SoyleAccent,
+                modifier           = Modifier.size(24.dp)
             )
         }
 
-        // Метка NEW
         if (practice.isNew) {
             Box(
                 modifier = Modifier
@@ -383,7 +418,7 @@ private fun DailyTipCard(tip: DailyTip) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                text       = "\u201c\u201c",
+                text       = "““",
                 fontSize   = 28.sp,
                 color      = SoyleTextMuted,
                 lineHeight = 0.sp
@@ -412,7 +447,12 @@ private fun DailyTipCard(tip: DailyTip) {
                     color    = SoyleTextSecondary,
                     fontWeight = FontWeight.Medium
                 )
-                Text("♡", fontSize = 16.sp, color = SoyleTextMuted)
+                Icon(
+                    imageVector        = Icons.Outlined.FavoriteBorder,
+                    contentDescription = null,
+                    tint               = SoyleTextMuted,
+                    modifier           = Modifier.size(18.dp)
+                )
             }
         }
     }
@@ -421,7 +461,7 @@ private fun DailyTipCard(tip: DailyTip) {
 // ── Статистика недели ─────────────────────────────────────────────────────────
 
 @Composable
-private fun WeeklyStats(checkedDays: Set<Int>) {
+private fun WeeklyStats(streak: Int, checkedDays: Set<Int>, avgScore: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -442,10 +482,16 @@ private fun WeeklyStats(checkedDays: Set<Int>) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 StatItem(value = "${checkedDays.size}", label = "занятий")
-                StatItem(value = "3 🔥", label = "серия")
-                StatItem(value = "85%", label = "ср. оценка")
+                StatItem(
+                    value      = "$streak",
+                    label      = "серия",
+                    showFire   = streak > 0
+                )
+                StatItem(
+                    value = if (avgScore > 0) "$avgScore%" else "—",
+                    label = "ср. оценка"
+                )
             }
-            // Нужно больше данных
             if (checkedDays.size < 3) {
                 Box(
                     modifier = Modifier
@@ -460,7 +506,6 @@ private fun WeeklyStats(checkedDays: Set<Int>) {
                             fontSize = 13.sp,
                             color    = SoyleTextSecondary
                         )
-                        // Прогресс-точки
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             repeat(3) { i ->
                                 Box(
@@ -478,7 +523,12 @@ private fun WeeklyStats(checkedDays: Set<Int>) {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (i < checkedDays.size) {
-                                        Text("✓", fontSize = 12.sp, color = SoyleBg)
+                                        Icon(
+                                            imageVector        = Icons.Outlined.Check,
+                                            contentDescription = null,
+                                            tint               = SoyleBg,
+                                            modifier           = Modifier.size(14.dp)
+                                        )
                                     }
                                 }
                             }
@@ -491,17 +541,30 @@ private fun WeeklyStats(checkedDays: Set<Int>) {
 }
 
 @Composable
-private fun StatItem(value: String, label: String) {
+private fun StatItem(value: String, label: String, showFire: Boolean = false) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text       = value,
-            fontWeight = FontWeight.Bold,
-            fontSize   = 20.sp,
-            color      = SoyleTextPrimary
-        )
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            if (showFire) {
+                Icon(
+                    imageVector        = Icons.Outlined.Whatshot,
+                    contentDescription = null,
+                    tint               = SoyleStreak,
+                    modifier           = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text       = value,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 20.sp,
+                color      = if (showFire) SoyleStreak else SoyleTextPrimary
+            )
+        }
         Text(
             text     = label,
             fontSize = 11.sp,

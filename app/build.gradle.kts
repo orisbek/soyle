@@ -4,14 +4,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace   = "com.soyle.app"
+    namespace   = "com.example.soyle"
     compileSdk  = 35
 
     defaultConfig {
-        applicationId   = "com.soyle.app"
+        applicationId   = "com.example.soyle"
         minSdk          = 26
         targetSdk       = 35
         versionCode     = 1
@@ -21,7 +22,9 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String",  "API_BASE_URL",        "\"http://10.0.2.2:8000/\"")
+            // Эмулятор  → 10.0.2.2:8000
+            // Реальный телефон → IP компьютера (192.168.0.17:8000)
+            buildConfigField("String",  "API_BASE_URL",        "\"http://192.168.0.17:8000/\"")
             buildConfigField("boolean", "ENABLE_HTTP_LOGGING",  "true")
         }
         release {
@@ -55,6 +58,13 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.51.1")
     ksp("com.google.dagger:hilt-android-compiler:2.51.1")
 
+    // ── Firebase ──────────────────────────────────────────────────────────────
+    val firebaseBom = platform("com.google.firebase:firebase-bom:33.7.0")
+    implementation(firebaseBom)
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
     // ── Compose BOM ──────────────────────────────────────────────────────────
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
@@ -81,12 +91,12 @@ dependencies {
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
     ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.1")
 
-    // ── Room (локальная БД) ───────────────────────────────────────────────────
+    // ── Room ──────────────────────────────────────────────────────────────────
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // ── DataStore (сохранение настроек) ───────────────────────────────────────
+    // ── DataStore ─────────────────────────────────────────────────────────────
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // ── Coroutines ────────────────────────────────────────────────────────────
