@@ -1,5 +1,6 @@
 package com.example.soyle.ui.screens.home
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
@@ -31,13 +33,7 @@ data class Practice(
     val title   : String,
     val duration: String,
     val isNew   : Boolean  = false,
-    val isLocked: Boolean  = false
-)
-
-data class DailyTip(
-    val text   : String,
-    val author : String,
-    val source : String
+    val color   : Color    = Color(0xFF6C63FF)
 )
 
 // ── Главный экран ─────────────────────────────────────────────────────────────
@@ -46,15 +42,17 @@ data class DailyTip(
 fun HomeScreen(
     onOpenCheckIn  : () -> Unit = {},
     onOpenExercise : (String) -> Unit = {},
+    onOpenGame     : (String) -> Unit = {},
     onOpenProfile  : () -> Unit = {},
-    viewModel      : HomeViewModel = hiltViewModel()
+    viewModel      : HomeViewModel  = hiltViewModel(),
+    notesViewModel : NotesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val notes   by notesViewModel.notes.collectAsState()
 
     val streak         = uiState.currentStreak
     val checkedInToday = uiState.currentStreak > 0
     val weekDays       = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-    // Заполняем последние N дней по серии (упрощённо)
     val checkedCount   = uiState.weekCheckedCount
     val checkedDays    = (0 until checkedCount).toSet()
 
@@ -67,106 +65,112 @@ fun HomeScreen(
         else      -> "добрый вечер."
     }
 
+    // Игры как практики
     val practices = remember {
         listOf(
-            Practice("1", Icons.Outlined.Mood,             "Проверка\nнастроения",   "2 мин"),
-            Practice("2", Icons.Outlined.Air,              "Упражнение\nс дыханием", "5 мин"),
-            Practice("3", Icons.Outlined.RecordVoiceOver,  "Звук «Р»\nпо слогам",   "7 мин"),
-            Practice("4", Icons.Outlined.EditNote,         "Дневник\nречи",          "3 мин"),
-            Practice("5", Icons.Outlined.Speed,            "Скороговорки",           "5 мин", isNew = true),
-            Practice("6", Icons.Outlined.Summarize,        "Итог дня",               "3 мин")
+            Practice("catch_r",    Icons.Outlined.GpsFixed,        "Поймай\n«Р»",    "3 мин", isNew = true, color = Color(0xFF6C63FF)),
+            Practice("guess_word", Icons.Outlined.Hearing,         "Угадай\nслово",  "5 мин", color = Color(0xFF00BCD4)),
+            Practice("where_r",    Icons.Outlined.TravelExplore,   "Где\n«Р»?",      "4 мин", color = Color(0xFF4CAF50)),
+            Practice("word_r",     Icons.Outlined.RecordVoiceOver, "Слова\nна «Р»",  "5 мин", color = Color(0xFFFF9800)),
+            Practice("tongue_twist", Icons.Outlined.RecordVoiceOver, "Скоро-\nговорки","5 мин", color = Color(0xFFE91E63)),
+            Practice("poems",      Icons.Outlined.AutoStories,     "Стишки\nс «Р»",  "4 мин", color = Color(0xFF9C27B0)),
+            Practice("tongue_ex",  Icons.Outlined.Gesture,         "Язык\nгимнастика","6 мин", color = Color(0xFF009688)),
         )
     }
 
-    val tip = remember {
-        DailyTip(
-            text   = "Регулярные короткие занятия дают лучший результат, чем редкие длинные.",
-            author = "Принцип логопедии",
-            source = ""
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SoyleBg)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // ── Шапка ─────────────────────────────────────────────────────────
-        HomeTopBar(
-            streak    = streak,
-            greeting  = greeting,
-            onProfile = onOpenProfile
-        )
-
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier            = Modifier.padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SoyleBg)
+                .verticalScroll(rememberScrollState())
         ) {
-            // ── Блок чек-ина ──────────────────────────────────────────────
-            Spacer(Modifier.height(20.dp))
-            CheckInCard(
-                checked    = checkedInToday,
-                weekDays   = weekDays,
-                checkedSet = checkedDays,
-                onClick    = onOpenCheckIn
+            // ── Шапка ─────────────────────────────────────────────────────────
+            HomeTopBar(
+                streak    = streak,
+                greeting  = greeting,
+                onProfile = onOpenProfile
             )
 
-            // ── Твои практики ─────────────────────────────────────────────
-            Spacer(Modifier.height(28.dp))
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+            Column(
+                modifier            = Modifier.padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                Text(
-                    text       = "Твои практики",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 17.sp,
-                    color      = SoyleTextPrimary
+                // ── Блок чек-ина ──────────────────────────────────────────────
+                Spacer(Modifier.height(20.dp))
+                CheckInCard(
+                    checked    = checkedInToday,
+                    weekDays   = weekDays,
+                    checkedSet = checkedDays,
+                    onClick    = onOpenCheckIn
                 )
-                Icon(
-                    imageVector        = Icons.Outlined.Settings,
-                    contentDescription = "Настройки",
-                    tint               = SoyleTextSecondary,
-                    modifier           = Modifier.size(18.dp)
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text     = "Упражнения выбраны для твоего прогресса. Добавляй свои!",
-                fontSize = 13.sp,
-                color    = SoyleTextSecondary,
-                lineHeight = 18.sp
-            )
-            Spacer(Modifier.height(16.dp))
 
-            // Горизонтальный скролл практик
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding        = PaddingValues(end = 8.dp)
-            ) {
-                items(practices) { practice ->
-                    PracticeCard(
-                        practice = practice,
-                        onClick  = { onOpenExercise(practice.id) }
+                // ── Твои практики ─────────────────────────────────────────────
+                Spacer(Modifier.height(28.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text       = "Твои практики",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 17.sp,
+                        color      = SoyleTextPrimary
+                    )
+                    Text(
+                        text     = "все игры →",
+                        fontSize = 12.sp,
+                        color    = SoyleAccent
                     )
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text     = "Выбирай игру и тренируй букву «Р» каждый день",
+                    fontSize = 13.sp,
+                    color    = SoyleTextSecondary,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(14.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding        = PaddingValues(end = 8.dp)
+                ) {
+                    items(practices) { practice ->
+                        PracticeCard(
+                            practice = practice,
+                            onClick  = { onOpenGame(practice.id) }
+                        )
+                    }
+                }
+
+                // ── Заметки ───────────────────────────────────────────────────
+                Spacer(Modifier.height(28.dp))
+                NotesSection(
+                    notes          = notes,
+                    onAddNote      = { notesViewModel.addNote(it) },
+                    onDeleteNote   = { notesViewModel.deleteNote(it) }
+                )
+
+                // ── Статистика недели ─────────────────────────────────────────
+                Spacer(Modifier.height(28.dp))
+                WeeklyStats(
+                    streak       = streak,
+                    checkedDays  = checkedDays,
+                    avgScore     = uiState.avgScore
+                )
+
+                Spacer(Modifier.height(100.dp))
             }
+        }
 
-            // ── Совет дня ────────────────────────────────────────────────
-            Spacer(Modifier.height(28.dp))
-            DailyTipCard(tip = tip)
-
-            // ── Статистика недели ─────────────────────────────────────────
-            Spacer(Modifier.height(28.dp))
-            WeeklyStats(
-                streak       = streak,
-                checkedDays  = checkedDays,
-                avgScore     = uiState.avgScore
+        // ── Ачивки поверх ─────────────────────────────────────────────────────
+        Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)) {
+            AchievementToastHost(
+                achievement = uiState.unlockedAchievement,
+                onDismiss   = viewModel::dismissAchievement
             )
-
-            Spacer(Modifier.height(100.dp))
         }
     }
 }
@@ -182,7 +186,6 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically
     ) {
-        // Серия (streak) — огонь только если streak > 0
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -191,44 +194,26 @@ private fun HomeTopBar(streak: Int, greeting: String, onProfile: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (streak > 0) {
-                    Icon(
-                        imageVector        = Icons.Outlined.Whatshot,
-                        contentDescription = "Серия",
-                        tint               = SoyleStreak,
-                        modifier           = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text       = "$streak",
-                        fontSize   = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = SoyleStreak
-                    )
-                } else {
-                    Icon(
-                        imageVector        = Icons.Outlined.Whatshot,
-                        contentDescription = "Серия",
-                        tint               = SoyleTextMuted,
-                        modifier           = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text     = "0",
-                        fontSize = 10.sp,
-                        color    = SoyleTextMuted
-                    )
-                }
+                Icon(
+                    imageVector        = Icons.Outlined.Whatshot,
+                    contentDescription = "Серия",
+                    tint               = if (streak > 0) SoyleStreak else SoyleTextMuted,
+                    modifier           = Modifier.size(14.dp)
+                )
+                Text(
+                    text       = "$streak",
+                    fontSize   = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = if (streak > 0) SoyleStreak else SoyleTextMuted
+                )
             }
         }
-
-        // Приветствие
         Text(
             text       = greeting,
             fontWeight = FontWeight.Normal,
             fontSize   = 16.sp,
             color      = SoyleTextPrimary
         )
-
-        // Аватар
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -273,32 +258,14 @@ private fun CheckInCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                Text(
-                    text     = "Чек-ин выполнен.",
-                    fontSize = 16.sp,
-                    color    = SoyleTextMuted
-                )
+                Text(text = "Чек-ин выполнен.", fontSize = 16.sp, color = SoyleTextMuted)
                 SoyleTag(text = "Активен")
             }
         } else {
-            Text(
-                text       = "Начни чек-ин",
-                fontWeight = FontWeight.SemiBold,
-                fontSize   = 17.sp,
-                color      = SoyleTextPrimary
-            )
-            Text(
-                text     = "Как чувствуешь себя сегодня?",
-                fontSize = 14.sp,
-                color    = SoyleTextSecondary
-            )
+            Text(text = "Начни чек-ин", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = SoyleTextPrimary)
+            Text(text = "Как чувствуешь себя сегодня?", fontSize = 14.sp, color = SoyleTextSecondary)
         }
-
-        // Мини-календарь недели
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             weekDays.forEachIndexed { index, day ->
                 WeekDayDot(day = day, isActive = index in checkedSet, isToday = index == 0)
             }
@@ -308,42 +275,18 @@ private fun CheckInCard(
 
 @Composable
 private fun WeekDayDot(day: String, isActive: Boolean, isToday: Boolean) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Box(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(
-                    when {
-                        isActive -> SoyleTextPrimary
-                        isToday  -> SoyleSurface2
-                        else     -> Color.Transparent
-                    }
-                )
-                .border(
-                    1.dp,
-                    if (isToday && !isActive) SoyleBorderLight else Color.Transparent,
-                    CircleShape
-                ),
+                .background(when { isActive -> SoyleTextPrimary; isToday -> SoyleSurface2; else -> Color.Transparent })
+                .border(1.dp, if (isToday && !isActive) SoyleBorderLight else Color.Transparent, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            if (isActive) {
-                Icon(
-                    imageVector        = Icons.Outlined.Whatshot,
-                    contentDescription = null,
-                    tint               = SoyleBg,
-                    modifier           = Modifier.size(14.dp)
-                )
-            }
+            if (isActive) Icon(Icons.Outlined.Whatshot, null, tint = SoyleBg, modifier = Modifier.size(14.dp))
         }
-        Text(
-            text     = day,
-            fontSize = 10.sp,
-            color    = if (isToday) SoyleTextSecondary else SoyleTextMuted
-        )
+        Text(text = day, fontSize = 10.sp, color = if (isToday) SoyleTextSecondary else SoyleTextMuted)
     }
 }
 
@@ -353,27 +296,27 @@ private fun WeekDayDot(day: String, isActive: Boolean, isToday: Boolean) {
 private fun PracticeCard(practice: Practice, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(100.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .width(88.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(SoyleSurface)
-            .border(1.dp, SoyleBorder, RoundedCornerShape(18.dp))
-            .clickable(enabled = !practice.isLocked, onClick = onClick)
-            .padding(14.dp),
+            .border(1.dp, SoyleBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(46.dp)
                 .clip(CircleShape)
-                .background(SoyleSurface2),
+                .background(practice.color.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector        = practice.icon,
                 contentDescription = practice.title,
-                tint               = if (practice.isLocked) SoyleTextMuted else SoyleAccent,
-                modifier           = Modifier.size(24.dp)
+                tint               = practice.color,
+                modifier           = Modifier.size(22.dp)
             )
         }
 
@@ -385,11 +328,11 @@ private fun PracticeCard(practice: Practice, onClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text     = "НОВОЕ",
-                    fontSize = 8.sp,
+                    text       = "НОВОЕ",
+                    fontSize   = 8.sp,
                     fontWeight = FontWeight.Bold,
-                    color    = SoyleAccentLight,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    color      = SoyleAccentLight,
+                    modifier   = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
         }
@@ -397,63 +340,176 @@ private fun PracticeCard(practice: Practice, onClick: () -> Unit) {
         Text(
             text      = practice.title,
             fontSize  = 11.sp,
-            color     = if (practice.isLocked) SoyleTextMuted else SoyleTextSecondary,
+            color     = SoyleTextSecondary,
             textAlign = TextAlign.Center,
             lineHeight = 15.sp
+        )
+        Text(
+            text     = practice.duration,
+            fontSize = 10.sp,
+            color    = SoyleTextMuted
         )
     }
 }
 
-// ── Совет дня ────────────────────────────────────────────────────────────────
+// ── Раздел заметок ────────────────────────────────────────────────────────────
 
 @Composable
-private fun DailyTipCard(tip: DailyTip) {
-    Box(
+private fun NotesSection(
+    notes        : List<String>,
+    onAddNote    : (String) -> Unit,
+    onDeleteNote : (String) -> Unit
+) {
+    var showDialog   by remember { mutableStateOf(false) }
+    var showAll      by remember { mutableStateOf(false) }
+    var inputText    by remember { mutableStateOf("") }
+
+    val displayNotes = if (showAll) notes else notes.take(3)
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(SoyleSurface)
             .border(1.dp, SoyleBorder, RoundedCornerShape(18.dp))
-            .padding(24.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
             Text(
-                text       = "““",
-                fontSize   = 28.sp,
-                color      = SoyleTextMuted,
-                lineHeight = 0.sp
+                text       = "Мои заметки",
+                fontWeight = FontWeight.SemiBold,
+                fontSize   = 15.sp,
+                color      = SoyleTextPrimary
             )
-            Text(
-                text      = tip.text,
-                fontSize  = 17.sp,
-                color     = SoyleTextPrimary,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 26.sp
-            )
-            if (tip.author.isNotEmpty()) {
-                Text(
-                    text     = tip.author,
-                    fontSize = 13.sp,
-                    color    = SoyleTextSecondary
-                )
-            }
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(SoyleAccentSoft)
+                    .clickable { showDialog = true },
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text     = "Записать мысли",
-                    fontSize = 14.sp,
-                    color    = SoyleTextSecondary,
-                    fontWeight = FontWeight.Medium
-                )
                 Icon(
-                    imageVector        = Icons.Outlined.FavoriteBorder,
-                    contentDescription = null,
-                    tint               = SoyleTextMuted,
+                    imageVector        = Icons.Outlined.Add,
+                    contentDescription = "Добавить заметку",
+                    tint               = SoyleAccent,
                     modifier           = Modifier.size(18.dp)
                 )
             }
+        }
+
+        if (notes.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SoyleSurface2)
+                    .clickable { showDialog = true }
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.EditNote, null, tint = SoyleTextMuted, modifier = Modifier.size(24.dp))
+                    Text("Записать мысль…", fontSize = 13.sp, color = SoyleTextMuted)
+                }
+            }
+        } else {
+            displayNotes.forEach { note ->
+                NoteItem(text = note, onDelete = { onDeleteNote(note) })
+            }
+
+            if (notes.size > 3) {
+                TextButton(
+                    onClick  = { showAll = !showAll },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text     = if (showAll) "Скрыть" else "Ещё ${notes.size - 3} заметок →",
+                        fontSize = 13.sp,
+                        color    = SoyleAccent
+                    )
+                }
+            }
+        }
+    }
+
+    // Диалог добавления заметки
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false; inputText = "" },
+            containerColor   = SoyleSurface,
+            title = {
+                Text("Новая заметка", fontWeight = FontWeight.SemiBold, color = SoyleTextPrimary)
+            },
+            text = {
+                OutlinedTextField(
+                    value         = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder   = { Text("Запиши свои мысли…", color = SoyleTextMuted) },
+                    maxLines      = 5,
+                    modifier      = Modifier.fillMaxWidth(),
+                    colors        = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor      = SoyleAccent,
+                        unfocusedBorderColor    = SoyleBorder,
+                        focusedTextColor        = SoyleTextPrimary,
+                        unfocusedTextColor      = SoyleTextPrimary,
+                        focusedContainerColor   = SoyleSurface2,
+                        unfocusedContainerColor = SoyleSurface2,
+                        cursorColor             = SoyleAccent
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (inputText.isNotBlank()) { onAddNote(inputText); inputText = "" }
+                    showDialog = false
+                }) { Text("Сохранить", color = SoyleAccent, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false; inputText = "" }) {
+                    Text("Отмена", color = SoyleTextSecondary)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun NoteItem(text: String, onDelete: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(SoyleSurface2)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector        = Icons.Outlined.Notes,
+            contentDescription = null,
+            tint               = SoyleTextMuted,
+            modifier           = Modifier.size(16.dp)
+        )
+        Text(
+            text       = text,
+            fontSize   = 13.sp,
+            color      = SoyleTextSecondary,
+            modifier   = Modifier.weight(1f),
+            lineHeight = 18.sp
+        )
+        IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector        = Icons.Outlined.Close,
+                contentDescription = "Удалить",
+                tint               = SoyleTextMuted,
+                modifier           = Modifier.size(14.dp)
+            )
         }
     }
 }
@@ -471,26 +527,11 @@ private fun WeeklyStats(streak: Int, checkedDays: Set<Int>, avgScore: Int) {
             .padding(20.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                text       = "На этой неделе",
-                fontWeight = FontWeight.SemiBold,
-                fontSize   = 15.sp,
-                color      = SoyleTextPrimary
-            )
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Text(text = "На этой неделе", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = SoyleTextPrimary)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 StatItem(value = "${checkedDays.size}", label = "занятий")
-                StatItem(
-                    value      = "$streak",
-                    label      = "серия",
-                    showFire   = streak > 0
-                )
-                StatItem(
-                    value = if (avgScore > 0) "$avgScore%" else "—",
-                    label = "ср. оценка"
-                )
+                StatItem(value = "$streak", label = "серия", showFire = streak > 0)
+                StatItem(value = if (avgScore > 0) "$avgScore%" else "—", label = "ср. оценка")
             }
             if (checkedDays.size < 3) {
                 Box(
@@ -512,24 +553,12 @@ private fun WeeklyStats(streak: Int, checkedDays: Set<Int>, avgScore: Int) {
                                     modifier = Modifier
                                         .size(28.dp)
                                         .clip(CircleShape)
-                                        .background(
-                                            if (i < checkedDays.size) SoyleTextPrimary else SoyleSurface
-                                        )
-                                        .border(
-                                            1.dp,
-                                            if (i < checkedDays.size) Color.Transparent else SoyleBorderLight,
-                                            CircleShape
-                                        ),
+                                        .background(if (i < checkedDays.size) SoyleTextPrimary else SoyleSurface)
+                                        .border(1.dp, if (i < checkedDays.size) Color.Transparent else SoyleBorderLight, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (i < checkedDays.size) {
-                                        Icon(
-                                            imageVector        = Icons.Outlined.Check,
-                                            contentDescription = null,
-                                            tint               = SoyleBg,
-                                            modifier           = Modifier.size(14.dp)
-                                        )
-                                    }
+                                    if (i < checkedDays.size)
+                                        Icon(Icons.Outlined.Check, null, tint = SoyleBg, modifier = Modifier.size(14.dp))
                                 }
                             }
                         }
@@ -542,33 +571,11 @@ private fun WeeklyStats(streak: Int, checkedDays: Set<Int>, avgScore: Int) {
 
 @Composable
 private fun StatItem(value: String, label: String, showFire: Boolean = false) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            if (showFire) {
-                Icon(
-                    imageVector        = Icons.Outlined.Whatshot,
-                    contentDescription = null,
-                    tint               = SoyleStreak,
-                    modifier           = Modifier.size(16.dp)
-                )
-            }
-            Text(
-                text       = value,
-                fontWeight = FontWeight.Bold,
-                fontSize   = 20.sp,
-                color      = if (showFire) SoyleStreak else SoyleTextPrimary
-            )
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (showFire) Icon(Icons.Outlined.Whatshot, null, tint = SoyleStreak, modifier = Modifier.size(16.dp))
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = if (showFire) SoyleStreak else SoyleTextPrimary)
         }
-        Text(
-            text     = label,
-            fontSize = 11.sp,
-            color    = SoyleTextSecondary
-        )
+        Text(label, fontSize = 11.sp, color = SoyleTextSecondary)
     }
 }

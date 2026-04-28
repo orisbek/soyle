@@ -27,7 +27,7 @@ import com.example.soyle.ui.theme.*
 
 // ── Модели ────────────────────────────────────────────────────────────────────
 
-enum class GameCategory { PHONEME, BREATHING, VOCABULARY, TONGUE }
+enum class GameCategory { PHONEME, VOCABULARY, TONGUE }
 
 data class GameItem(
     val id          : String,
@@ -39,33 +39,28 @@ data class GameItem(
     val duration    : String,
     val isFeatured  : Boolean = false,
     val isLocked    : Boolean = false,
-    /** Ключевые слова для поиска (дополнительно к title/description) */
+    val isNew       : Boolean = false,
     val tags        : List<String> = emptyList()
 )
 
 // ── Список всех игр ────────────────────────────────────────────────────────────
 
 private val ALL_GAMES = listOf(
-    GameItem("catch_r",  Icons.Outlined.GpsFixed,        "Поймай букву «Р»",   "Нажимай только на нужную букву",       GameCategory.PHONEME,    1, "3 мин", isFeatured = true,  tags = listOf("р", "буква", "фонема")),
-    GameItem("breath1",  Icons.Outlined.Air,              "Воздушный шарик",    "Надуй шарик правильным дыханием",      GameCategory.BREATHING,  1, "2 мин",                     tags = listOf("дыхание", "шарик")),
-    GameItem("word_r",   Icons.Outlined.RecordVoiceOver,  "Слова на «Р»",       "Произнеси слово — получи очко",        GameCategory.PHONEME,    2, "5 мин",                     tags = listOf("р", "слова", "произношение")),
-    GameItem("tongue1",  Icons.Outlined.Mic,              "Гимнастика языка",   "Следуй за упражнениями",               GameCategory.TONGUE,     1, "4 мин",                     tags = listOf("язык", "гимнастика")),
-    GameItem("echo",     Icons.Outlined.GraphicEq,        "Эхо",                "Повтори звук точь-в-точь",             GameCategory.PHONEME,    2, "5 мин",                     tags = listOf("повтор", "звук", "речь")),
-    GameItem("story",    Icons.Outlined.AutoStories,      "Составь историю",    "Придумай рассказ по картинке",         GameCategory.VOCABULARY, 3, "8 мин",                     tags = listOf("история", "речь", "словарь")),
-    GameItem("whisper",  Icons.Outlined.VolumeDown,       "Шёпот и крик",       "Управляй громкостью голоса",           GameCategory.BREATHING,  1, "3 мин",                     tags = listOf("громкость", "голос", "дыхание")),
-    GameItem("tongue2",  Icons.Outlined.Gesture,          "Змейка-язычок",      "Двигай языком по дорожке",             GameCategory.TONGUE,     2, "5 мин",                     tags = listOf("язык", "движение")),
-    GameItem("syllable", Icons.Outlined.MusicNote,        "Ритм слогов",        "Воспроизведи ритмический паттерн",     GameCategory.PHONEME,    2, "4 мин",                     tags = listOf("ритм", "слоги", "шипящие")),
-    GameItem("vocab",    Icons.Outlined.Stars,            "Слово дня",          "Изучи новое слово",                    GameCategory.VOCABULARY, 1, "2 мин",                     tags = listOf("слово", "словарь", "лексика")),
-    GameItem("hard1",    Icons.Outlined.Speed,            "Скороговорки",       "Скажи как можно быстрее и чисто",      GameCategory.PHONEME,    3, "6 мин", isLocked = true,    tags = listOf("скороговорка", "быстро", "л", "шипящие")),
+    GameItem("catch_r",     Icons.Outlined.GpsFixed,        "Поймай букву «Р»",  "Нажимай только на нужную букву",     GameCategory.PHONEME,    1, "3 мин", isFeatured = true, tags = listOf("р", "буква", "фонема")),
+    GameItem("guess_word",  Icons.Outlined.Hearing,         "Угадай слово",      "Послушай и выбери правильный ответ", GameCategory.PHONEME,    2, "5 мин",                   tags = listOf("р", "слова", "слушать", "угадай")),
+    GameItem("where_r",     Icons.Outlined.TravelExplore,   "Где буква «Р»?",    "Найди позицию буквы в слове",        GameCategory.PHONEME,    2, "4 мин",                   tags = listOf("р", "позиция", "начало", "конец")),
+    GameItem("word_r",      Icons.Outlined.RecordVoiceOver, "Слова на «Р»",      "Произнеси слово — получи очко",      GameCategory.PHONEME,    3, "5 мин",                   tags = listOf("р", "слова", "произношение")),
+    GameItem("tongue_twist",Icons.Outlined.Speed,           "Скороговорки",      "Говори быстро и чётко",              GameCategory.PHONEME,    2, "5 мин", isNew = true,      tags = listOf("скороговорка", "р", "быстро")),
+    GameItem("poems",       Icons.Outlined.AutoStories,     "Стишки с «Р»",      "Читай стихи — тренируй звук",        GameCategory.VOCABULARY, 1, "4 мин", isNew = true,      tags = listOf("стих", "р", "читать", "строчки")),
+    GameItem("tongue_ex",   Icons.Outlined.Gesture,         "Гимнастика языка",  "Упражнения для правильного звука",   GameCategory.TONGUE,     1, "6 мин", isNew = true,      tags = listOf("язык", "гимнастика", "упражнение")),
 )
 
 /** Маппинг цели пользователя → id рекомендуемой игры */
 private fun featuredIdForGoal(goal: String): String = when {
-    goal.contains("Р", ignoreCase = true) || goal.contains("р", ignoreCase = true) -> "catch_r"
-    goal.contains("Л", ignoreCase = true)                                           -> "word_r"
-    goal.contains("шипящ", ignoreCase = true)                                       -> "syllable"
-    goal.contains("общ", ignoreCase = true) || goal.contains("речь", ignoreCase = true) -> "story"
-    else                                                                            -> "catch_r"
+    goal.contains("угадай", ignoreCase = true) || goal.contains("слух", ignoreCase = true) -> "guess_word"
+    goal.contains("где", ignoreCase = true)  || goal.contains("позиц", ignoreCase = true)  -> "where_r"
+    goal.contains("слова", ignoreCase = true) || goal.contains("произнос", ignoreCase = true) -> "word_r"
+    else                                                                                    -> "catch_r"
 }
 
 // ── Экран игр ─────────────────────────────────────────────────────────────────
@@ -78,15 +73,15 @@ fun GamesScreen(
     val userGoal    by viewModel.userGoal.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    var selectedCategory by remember { mutableStateOf<GameCategory?>(null) }
     var searchActive     by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<GameCategory?>(null) }
     val focusRequester   = remember { FocusRequester() }
 
     // Рекомендуемая игра на основе цели
-    val featuredId = featuredIdForGoal(userGoal)
+    val featuredId   = featuredIdForGoal(userGoal)
     val featuredGame = ALL_GAMES.first { it.id == featuredId }
 
-    // Фильтрация: поиск + категория
+    // Фильтрация по поиску + категории
     val filtered = remember(searchQuery, selectedCategory) {
         ALL_GAMES.filter { game ->
             val matchesSearch = searchQuery.isBlank() ||
@@ -208,17 +203,15 @@ fun GamesScreen(
         }
 
         // ── Рекомендуемый баннер (скрывается при поиске) ──────────────────
-        if (!searchActive || searchQuery.isBlank()) {
-            if (searchQuery.isBlank()) {
-                FeaturedBanner(
-                    game    = featuredGame,
-                    goal    = userGoal,
-                    onClick = onOpenGame
-                )
-                Spacer(Modifier.height(20.dp))
-            }
+        if (searchQuery.isBlank()) {
+            FeaturedBanner(
+                game    = featuredGame,
+                goal    = userGoal,
+                onClick = onOpenGame
+            )
+            Spacer(Modifier.height(16.dp))
 
-            // ── Фильтры категорий ──────────────────────────────────────────
+            // Фильтры категорий
             CategoryFilterRow(
                 selected = selectedCategory,
                 onSelect = { selectedCategory = if (selectedCategory == it) null else it }
@@ -350,18 +343,14 @@ private fun FeaturedBanner(game: GameItem, goal: String, onClick: (String) -> Un
 // ── Фильтры категорий ─────────────────────────────────────────────────────────
 
 @Composable
-private fun CategoryFilterRow(
-    selected : GameCategory?,
-    onSelect : (GameCategory) -> Unit
-) {
+private fun CategoryFilterRow(selected: GameCategory?, onSelect: (GameCategory) -> Unit) {
     val categories = listOf(
-        GameCategory.PHONEME    to "Звуки",
-        GameCategory.BREATHING  to "Дыхание",
-        GameCategory.TONGUE     to "Язык",
-        GameCategory.VOCABULARY to "Слова"
+        GameCategory.PHONEME    to "🎯 Звук «Р»",
+        GameCategory.VOCABULARY to "📖 Стишки",
+        GameCategory.TONGUE     to "👅 Язык",
     )
     Row(
-        modifier           = Modifier
+        modifier              = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
@@ -414,8 +403,8 @@ private fun GameCard(game: GameItem, onClick: () -> Unit, modifier: Modifier = M
                     tint               = if (game.isLocked) SoyleTextMuted else SoyleAccent,
                     modifier           = Modifier.size(40.dp)
                 )
-                if (game.isLocked) {
-                    Box(
+                when {
+                    game.isLocked -> Box(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(8.dp)
@@ -424,12 +413,17 @@ private fun GameCard(game: GameItem, onClick: () -> Unit, modifier: Modifier = M
                             .border(1.dp, SoyleBorder, RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
-                        Icon(
-                            imageVector        = Icons.Outlined.Lock,
-                            contentDescription = "Заблокировано",
-                            tint               = SoyleTextMuted,
-                            modifier           = Modifier.size(10.dp)
-                        )
+                        Icon(Icons.Outlined.Lock, "Заблокировано", tint = SoyleTextMuted, modifier = Modifier.size(10.dp))
+                    }
+                    game.isNew -> Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(SoyleAccent)
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    ) {
+                        Text("NEW", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = SoyleButtonPrimaryText)
                     }
                 }
             }

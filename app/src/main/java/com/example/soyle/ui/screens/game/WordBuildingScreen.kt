@@ -1,434 +1,643 @@
 package com.example.soyle.ui.screens.game
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.speech.tts.TextToSpeech
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.*
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.soyle.domain.model.ExerciseMode
 import com.example.soyle.ui.screens.exercise.ExerciseUiState
 import com.example.soyle.ui.screens.exercise.ExerciseViewModel
 import com.example.soyle.ui.theme.*
-import java.util.Locale
 import kotlinx.coroutines.delay
+import java.util.Locale
 
-data class WordLevel(val number: Int, val word: String, val hint: String)
+// ── Данные слов (3 уровня сложности) ─────────────────────────────────────────
 
-val ALL_WORD_LEVELS = listOf(
-    WordLevel(1, "РАК", "В воде живет"),
-    WordLevel(2, "РЫБА", "Плавает в реке"),
-    WordLevel(3, "РУКА", "Часть тела"),
-    WordLevel(4, "РОТ", "Говорит и ест"),
-    WordLevel(5, "РОГ", "На голове у оленя"),
-    WordLevel(6, "РИС", "Белая крупа"),
-    WordLevel(7, "РЕКА", "Течет вода"),
-    WordLevel(8, "РОМ", "Напиток пирата"),
-    WordLevel(9, "РЯД", "Один за другим"),
-    WordLevel(10, "РОСТ", "Человек высокий"),
-    WordLevel(11, "РОБОТ", "Железный помощник"),
-    WordLevel(12, "РАМА", "Для окна или картины"),
-    WordLevel(13, "РАНА", "Больное место"),
-    WordLevel(14, "РАДУГА", "Цветной мостик в небе"),
-    WordLevel(15, "РАБОТА", "Взрослые туда ходят"),
-    WordLevel(16, "РУЧКА", "Ей пишут в тетради"),
-    WordLevel(17, "РЫНОК", "Где покупают овощи"),
-    WordLevel(18, "РОЗА", "Колючий цветок"),
-    WordLevel(19, "РУБАШКА", "Одежда с пуговицами"),
-    WordLevel(20, "РЕМЕНЬ", "Держит штаны"),
-    WordLevel(21, "РАДИО", "Передает музыку"),
-    WordLevel(22, "РЮКЗАК", "Носят за спиной"),
-    WordLevel(23, "РИСУНОК", "Творчество на бумаге"),
-    WordLevel(24, "РЕШЕНИЕ", "Ответ на задачу"),
-    WordLevel(25, "РЕЖИМ", "Распорядок дня"),
-    WordLevel(26, "РЕЦЕПТ", "Как готовить еду"),
-    WordLevel(27, "РЕЗУЛЬТАТ", "Итог стараний"),
-    WordLevel(28, "РЕАЛЬНОСТЬ", "Мир вокруг нас"),
-    WordLevel(29, "РАЗВИТИЕ", "Рост и обучение"),
-    WordLevel(30, "РАЗГОВОР", "Общение людей"),
-    WordLevel(31, "РЫЦАРЬ", "Герой в доспехах"),
-    WordLevel(32, "РАКЕТА", "Летит к звездам"),
-    WordLevel(33, "РАКУШКА", "Домик улитки"),
-    WordLevel(34, "РЕЗИНКА", "Стирает карандаш"),
-    WordLevel(35, "РЕДИС", "Красный овощ"),
-    WordLevel(36, "РЕДКИЙ", "Необычный предмет"),
-    WordLevel(37, "РЕЗАТЬ", "Работа ножницами"),
-    WordLevel(38, "РАСТИ", "Становиться больше"),
-    WordLevel(39, "РИСОВАТЬ", "Создавать красоту"),
-    WordLevel(40, "РЫЧАТЬ", "Как лев"),
-    WordLevel(41, "РЫЖИЙ", "Цвет лисицы"),
-    WordLevel(42, "РЕЗВЫЙ", "Быстрый бег"),
-    WordLevel(43, "РАДОСТНЫЙ", "Веселый человек"),
-    WordLevel(44, "РАННИЙ", "На рассвете"),
-    WordLevel(45, "РЕЗКИЙ", "Быстрый и сильный"),
-    WordLevel(46, "РОВНЫЙ", "Гладкий путь"),
-    WordLevel(47, "РОБКИЙ", "Стеснительный"),
-    WordLevel(48, "РАЗУМНЫЙ", "Очень умный"),
-    WordLevel(49, "РОДНОЙ", "Близкий человек"),
-    WordLevel(50, "РЕЧНОЙ", "Относится к реке"),
-    WordLevel(51, "РЕБРО", "Часть скелета"),
-    WordLevel(52, "РОМАШКА", "Белый цветок"),
-    WordLevel(53, "РУЧЕЙ", "Маленькая речка"),
-    WordLevel(54, "РЫБОЛОВ", "Кто ловит рыбу"),
-    WordLevel(55, "РАССВЕТ", "Утро начинается"),
-    WordLevel(56, "РАССКАЗ", "История в книге"),
-    WordLevel(57, "РАМКА", "Вокруг фото"),
-    WordLevel(58, "АРБУЗ", "Сладкая ягода"),
-    WordLevel(59, "РОСТОК", "Маленький цветок"),
-    WordLevel(60, "РЫСЬ", "Дикая кошка"),
-    WordLevel(61, "РАБОТАЮЩИЙ", "Кто сейчас трудится"),
-    WordLevel(62, "РАСТУЩИЙ", "Становится выше"),
-    WordLevel(63, "РИСУЮЩИЙ", "Кто держит кисть"),
-    WordLevel(64, "РЕШАЮЩИЙ", "Важный момент"),
-    WordLevel(65, "РАЗБИТЫЙ", "Сломанная вещь"),
-    WordLevel(66, "РАСКРЫТЫЙ", "Открытая книга"),
-    WordLevel(67, "РАЗНЫЙ", "Не похожий на другой"),
-    WordLevel(68, "РОВЕСНИК", "Одинакового возраста"),
-    WordLevel(69, "РОДИТЕЛЬ", "Папа или мама"),
-    WordLevel(70, "РЕБЁНОК", "Маленький человек"),
-    WordLevel(71, "РОЩА", "Маленький лес"),
-    WordLevel(72, "РЕФЛЕКС", "Быстрая реакция"),
-    WordLevel(73, "РЕГИСТР", "Список имен"),
-    WordLevel(74, "РЕМОНТ", "Чиним квартиру"),
-    WordLevel(75, "РЕГИОН", "Часть страны"),
-    WordLevel(76, "РЕСУРС", "Запас сил"),
-    WordLevel(77, "РЕЙТИНГ", "Список лучших"),
-    WordLevel(78, "РЕЦЕПТ", "Как варить суп"),
-    WordLevel(79, "РЕАКЦИЯ", "Ответ на действие"),
-    WordLevel(80, "РЕКОРД", "Самый лучший"),
-    WordLevel(81, "РАССКАЗЧИК", "Кто говорит историю"),
-    WordLevel(82, "РАБОТНИК", "Кто трудится"),
-    WordLevel(83, "РУКОВОДИТЕЛЬ", "Главный начальник"),
-    WordLevel(84, "РЕДАКТОР", "Исправляет тексты"),
-    WordLevel(85, "РАЗВЕДЧИК", "Ищет секреты"),
-    WordLevel(86, "РЫБАК", "Сидит с удочкой"),
-    WordLevel(87, "РАКЕТЧИК", "Кто пускает ракеты"),
-    WordLevel(88, "РЕСТАВРАТОР", "Чинит старые вещи"),
-    WordLevel(89, "РЕЖИССЁР", "Снимает кино"),
-    WordLevel(90, "РЕНТГЕН", "Видит косточки"),
-    WordLevel(91, "РИСОВАНИЕ", "Урок творчества"),
-    WordLevel(92, "РАЗВИТИЕ", "Учеба и рост"),
-    WordLevel(93, "РАЗМИНКА", "Зарядка утром"),
-    WordLevel(94, "РАЗГОВОРЧИК", "Короткая беседа"),
-    WordLevel(95, "РАДОСТЬ", "Счастье в душе"),
-    WordLevel(96, "РОЖДЕНИЕ", "День праздника"),
-    WordLevel(97, "РЕШЕНИЕ", "Правильный ответ"),
-    WordLevel(98, "РАЗРУШЕНИЕ", "Всё сломалось"),
-    WordLevel(99, "РАВНОВЕСИЕ", "Не падать"),
-    WordLevel(100, "РАЗНООБРАЗИЕ", "Много всего разного")
+data class PronounceWord(val word: String, val hint: String)
+
+private val WORDS_LEVEL_1 = listOf(
+    PronounceWord("рак",   "Живёт в воде"),
+    PronounceWord("рот",   "Говорит и ест"),
+    PronounceWord("рог",   "На голове у оленя"),
+    PronounceWord("рис",   "Белая крупа"),
+    PronounceWord("рысь",  "Быстрая кошка"),
+    PronounceWord("рука",  "Часть тела"),
+    PronounceWord("рыба",  "Плавает в реке"),
+    PronounceWord("роза",  "Красивый цветок"),
+    PronounceWord("рост",  "Высота человека"),
+    PronounceWord("мир",   "Спокойствие"),
+    PronounceWord("сыр",   "Жёлтый и вкусный"),
+    PronounceWord("шар",   "Круглый и воздушный"),
+    PronounceWord("пар",   "Горячий туман"),
+    PronounceWord("жар",   "Очень жарко"),
+    PronounceWord("дар",   "Подарок, талант")
 )
 
+private val WORDS_LEVEL_2 = listOf(
+    PronounceWord("радуга",   "Цветной мостик в небе"),
+    PronounceWord("работа",   "Взрослые туда ходят"),
+    PronounceWord("рыбалка",  "Ловят рыбу"),
+    PronounceWord("рубашка",  "Одежда с пуговицами"),
+    PronounceWord("ремонт",   "Починить дом"),
+    PronounceWord("ребёнок",  "Маленький человек"),
+    PronounceWord("рисунок",  "Нарисованная картинка"),
+    PronounceWord("радость",  "Счастливое чувство"),
+    PronounceWord("ромашка",  "Белый полевой цветок"),
+    PronounceWord("береза",   "Белое дерево"),
+    PronounceWord("морковь",  "Оранжевый овощ"),
+    PronounceWord("зеркало",  "Смотрят своё лицо"),
+    PronounceWord("горка",    "Дети катаются"),
+    PronounceWord("трамвай",  "Едет по рельсам"),
+    PronounceWord("пожар",    "Огонь везде"),
+)
+
+private val WORDS_LEVEL_3 = listOf(
+    PronounceWord("рыболов",     "Тот кто ловит рыбу"),
+    PronounceWord("ракетка",     "Для игры в теннис"),
+    PronounceWord("рукопись",    "Написанная от руки"),
+    PronounceWord("развитие",    "Учёба и рост"),
+    PronounceWord("рассказ",     "Короткая история"),
+    PronounceWord("разговор",    "Когда люди говорят"),
+    PronounceWord("радоваться",  "Чувствовать радость"),
+    PronounceWord("мороженое",   "Холодное и сладкое"),
+    PronounceWord("коридор",     "Проход в доме"),
+    PronounceWord("руководство", "Главная инструкция"),
+    PronounceWord("различать",   "Отличать одно от другого"),
+    PronounceWord("разбудить",   "Разбудить ото сна"),
+    PronounceWord("рыбачить",    "Ловить рыбу удочкой"),
+    PronounceWord("разложить",   "Разложить по местам"),
+    PronounceWord("рабочий",     "Тот кто работает"),
+)
+
+private fun wordsForLevel(level: Int) = when (level) {
+    1    -> WORDS_LEVEL_1
+    2    -> WORDS_LEVEL_2
+    else -> WORDS_LEVEL_3
+}
+
+// ── Вспомогательный enum уровней ──────────────────────────────────────────────
+
+private enum class WordsLevel { SELECT, LEVEL1, LEVEL2, LEVEL3 }
+
+// ── Точка входа ───────────────────────────────────────────────────────────────
+
 @Composable
-fun LevelSelectScreen(
-    unlockedLevels: List<Int> = listOf(1), // TODO: Брать из ViewModel
-    onLevelSelected: (WordLevel) -> Unit,
-    onBack: () -> Unit
-) {
-    val context = LocalContext.current
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    
-    DisposableEffect(context) {
-        val ttsInstance = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) tts?.language = Locale("ru")
-        }
-        tts = ttsInstance
-        onDispose { ttsInstance.stop(); ttsInstance.shutdown() }
-    }
+fun WordBuildingScreen(onBack: () -> Unit = {}) {
+    var level by remember { mutableStateOf(WordsLevel.SELECT) }
 
-    val speak = { text: String -> tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null) }
-
-    Column(modifier = Modifier.fillMaxSize().background(KidsBg)) {
-        Box(
-            modifier = Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(KidsOrange, KidsPink))).padding(20.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Text("←", fontSize = 24.sp, color = Color.White) }
-                Text("🔤 Карта уровней", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
-            }
-        }
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item(span = { GridItemSpan(3) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(KidsMintLight).padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🦜", fontSize = 32.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Проходи уровни по порядку!", fontWeight = FontWeight.Bold, color = KidsTextPrimary)
-                }
-            }
-
-            items(ALL_WORD_LEVELS) { level ->
-                val isUnlocked = level.number <= (unlockedLevels.maxOrNull() ?: 1)
-                LevelBubble(
-                    level = level, 
-                    isUnlocked = isUnlocked,
-                    onClick = { 
-                        if (isUnlocked) {
-                            speak(level.word)
-                            onLevelSelected(level) 
-                        }
-                    }
-                )
-            }
+    AnimatedContent(
+        targetState    = level,
+        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+        label          = "wordsLevel"
+    ) { current ->
+        when (current) {
+            WordsLevel.SELECT -> WordsLevelSelect(
+                onBack   = onBack,
+                onSelect = { level = it }
+            )
+            WordsLevel.LEVEL1 -> WordsPronounceGame(
+                levelNum  = 1,
+                onBack    = { level = WordsLevel.SELECT }
+            )
+            WordsLevel.LEVEL2 -> WordsPronounceGame(
+                levelNum  = 2,
+                onBack    = { level = WordsLevel.SELECT }
+            )
+            WordsLevel.LEVEL3 -> WordsPronounceGame(
+                levelNum  = 3,
+                onBack    = { level = WordsLevel.SELECT }
+            )
         }
     }
 }
 
+// ── Выбор уровня ──────────────────────────────────────────────────────────────
+
 @Composable
-private fun LevelBubble(level: WordLevel, isUnlocked: Boolean, onClick: () -> Unit) {
+private fun WordsLevelSelect(
+    onBack   : () -> Unit,
+    onSelect : (WordsLevel) -> Unit
+) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SoyleBg)
+            .padding(horizontal = 24.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isUnlocked) Brush.radialGradient(listOf(KidsMint, KidsMintDark))
-                    else Brush.radialGradient(listOf(Color.Gray, Color.DarkGray))
-                )
-                .border(4.dp, if (isUnlocked) Color.White else Color.LightGray, CircleShape)
-                .clickable(enabled = isUnlocked) { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (isUnlocked) {
-                Text("${level.number}", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
-            } else {
-                Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White)
-            }
+        Spacer(Modifier.height(20.dp))
+        IconButton(onClick = onBack) {
+            Icon(Icons.Outlined.ArrowBack, contentDescription = "Назад", tint = SoyleTextPrimary)
         }
+        Spacer(Modifier.height(16.dp))
         Text(
-            text = if (isUnlocked) level.word else "???",
-            fontSize = 14.sp,
+            text       = "Слова на «Р»",
             fontWeight = FontWeight.Bold,
-            color = if (isUnlocked) KidsTextPrimary else KidsTextDisabled
+            fontSize   = 28.sp,
+            color      = SoyleTextPrimary
+        )
+        Text(
+            text     = "Произнеси слово — получи очки",
+            fontSize = 14.sp,
+            color    = SoyleTextSecondary,
+            modifier = Modifier.padding(top = 4.dp, bottom = 32.dp)
+        )
+
+        WordsLevelCard(
+            number      = 1,
+            title       = "Лёгкий",
+            description = "Короткие слова — рак, рот, рука…",
+            color       = Color(0xFF4CAF50),
+            onClick     = { onSelect(WordsLevel.LEVEL1) }
+        )
+        Spacer(Modifier.height(14.dp))
+        WordsLevelCard(
+            number      = 2,
+            title       = "Средний",
+            description = "Средние слова — радуга, ромашка…",
+            color       = SoyleAccent,
+            onClick     = { onSelect(WordsLevel.LEVEL2) }
+        )
+        Spacer(Modifier.height(14.dp))
+        WordsLevelCard(
+            number      = 3,
+            title       = "Сложный",
+            description = "Длинные слова — разговор, рукопись…",
+            color       = Color(0xFFE53935),
+            onClick     = { onSelect(WordsLevel.LEVEL3) }
         )
     }
 }
 
 @Composable
-fun WordBuildingScreen(
-    level: WordLevel,
-    onBack: () -> Unit,
-    onNextLevel: () -> Unit,
-    viewModel: ExerciseViewModel = hiltViewModel()
+internal fun WordsLevelCard(
+    number      : Int,
+    title       : String,
+    description : String,
+    color       : Color,
+    onClick     : () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    var mascotText by remember { mutableStateOf("Собери слово «${level.word}»") }
-
-    DisposableEffect(context) {
-        val ttsInstance = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) tts?.language = Locale("ru")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SoyleSurface)
+            .border(1.dp, SoyleBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text       = number.toString(),
+                fontWeight = FontWeight.Bold,
+                fontSize   = 20.sp,
+                color      = color
+            )
         }
-        tts = ttsInstance
-        onDispose { ttsInstance.stop(); ttsInstance.shutdown() }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title,       fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = SoyleTextPrimary)
+            Text(text = description, fontSize = 12.sp, color = SoyleTextSecondary, modifier = Modifier.padding(top = 2.dp))
+        }
+        Icon(
+            imageVector        = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint               = SoyleTextMuted,
+            modifier           = Modifier.size(20.dp)
+        )
+    }
+}
+
+// ── Игровой экран произношения ────────────────────────────────────────────────
+
+@Composable
+private fun WordsPronounceGame(
+    levelNum  : Int,
+    onBack    : () -> Unit,
+    viewModel : ExerciseViewModel = hiltViewModel()
+) {
+    val context  = LocalContext.current
+    val uiState  by viewModel.uiState.collectAsState()
+    val words    = remember(levelNum) { wordsForLevel(levelNum).shuffled() }
+
+    // TTS
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    DisposableEffect(Unit) {
+        val t = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) tts?.language = Locale("ru", "RU")
+        }
+        tts = t
+        onDispose { t.shutdown() }
     }
 
-    val speak = { text: String -> tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null) }
+    // Состояние игры
+    var lives        by remember { mutableIntStateOf(3) }
+    var score        by remember { mutableIntStateOf(0) }
+    var currentIdx   by remember { mutableIntStateOf(0) }
+    var totalScore   by remember { mutableIntStateOf(0) }  // сумма очков за произношение
+    var gameOver     by remember { mutableStateOf(false) }
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED
+        )
+    }
 
-    val word = level.word
-    val indexedLetters = remember(level) { word.toList().mapIndexed { i, ch -> i to ch }.shuffled() }
-    var assembledIndices by remember { mutableStateOf(listOf<Int>()) }
-    var isWordAssembled by remember { mutableStateOf(false) }
-    var shakeWrong by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasPermission = granted }
 
-    val assembled = assembledIndices.map { idx -> indexedLetters[idx].second }
+    val total       = words.size
+    val currentWord = if (currentIdx < total) words[currentIdx] else null
 
-    // Текст маскота в зависимости от состояния
-    LaunchedEffect(uiState, isWordAssembled, shakeWrong) {
-        mascotText = when {
-            shakeWrong -> "Хмм, такое слово точно есть? 🤔"
-            uiState is ExerciseUiState.Success -> {
-                val score = (uiState as ExerciseUiState.Success).score
-                when {
-                    score >= 100 -> "Потрясающе! Идеально! 🎉"
-                    score == 50 -> (uiState as ExerciseUiState.Success).feedback
-                    else -> "Неверно! Попробуй еще раз! 💪"
+    // Автоозвучка при смене слова
+    LaunchedEffect(currentIdx) {
+        viewModel.reset()
+        if (currentWord != null) {
+            delay(400)
+            tts?.speak(currentWord.word, TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
+    // Обработка результата распознавания
+    LaunchedEffect(uiState) {
+        when (val s = uiState) {
+            is ExerciseUiState.Success -> {
+                totalScore += s.score
+                if (s.score >= 50) score++ else lives--
+                delay(1800)
+                if (lives <= 0 || currentIdx + 1 >= total) {
+                    gameOver = true
+                } else {
+                    currentIdx++
                 }
             }
-            isWordAssembled -> "Слово собрано! Теперь скажи «$word» в микрофон!"
-            else -> "Собери слово «$word»"
-        }
-    }
-
-    LaunchedEffect(assembledIndices.size) {
-        if (assembledIndices.size == word.length) {
-            if (assembled.joinToString("") == word) {
-                isWordAssembled = true
-                speak(word)
-            } else {
-                shakeWrong = true
+            is ExerciseUiState.Error -> {
+                lives--
                 delay(1500)
-                shakeWrong = false
-                assembledIndices = listOf()
+                if (lives <= 0 || currentIdx + 1 >= total) {
+                    gameOver = true
+                } else {
+                    currentIdx++
+                }
             }
+            else -> Unit
         }
     }
 
-    LaunchedEffect(uiState) {
-        val state = uiState
-        if (state is ExerciseUiState.Success) {
-            if (state.score < 100) {
-                delay(3000)
-                viewModel.reset()
-            }
-        }
+    fun restart() {
+        lives      = 3
+        score      = 0
+        currentIdx = 0
+        totalScore = 0
+        gameOver   = false
+        viewModel.reset()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(KidsBg)) {
-        Box(
-            modifier = Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(KidsOrange, KidsPink))).padding(20.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Text("←", fontSize = 24.sp, color = Color.White) }
-                Text("Уровень ${level.number}", color = Color.White, fontWeight = FontWeight.Black)
-            }
+    when {
+        gameOver -> GameOverScreen(
+            score     = score,
+            onBack    = onBack,
+            onRestart = ::restart
+        )
+        currentWord == null -> Box(Modifier.fillMaxSize().background(SoyleBg), Alignment.Center) {
+            Text("Нет слов", color = SoyleTextSecondary)
         }
+        else -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(SoyleBg)
+            ) {
+                GameTopBar(
+                    title  = "Слова на «Р»",
+                    lives  = lives,
+                    score  = score,
+                    onBack = onBack
+                )
 
-        Column(
-            modifier = Modifier.weight(1f).padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            KidsGameMascot(text = mascotText)
+                LinearProgressIndicator(
+                    progress   = { (currentIdx + 1).toFloat() / total },
+                    modifier   = Modifier.fillMaxWidth().height(3.dp),
+                    color      = SoyleAccent,
+                    trackColor = SoyleSurface2
+                )
 
-            Row(modifier = Modifier.offset(x = (if (shakeWrong) 10 else 0).dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                word.forEachIndexed { idx, _ ->
-                    val ch = assembled.getOrNull(idx)
-                    WordTile(
-                        char = ch?.toString() ?: "", 
-                        isActive = ch != null,
+                Spacer(Modifier.weight(1f))
+
+                // Подсказка
+                Text(
+                    text      = currentWord.hint,
+                    fontSize  = 13.sp,
+                    color     = SoyleTextMuted,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    modifier  = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // Слово с подсветкой буквы Р
+                WordCardDisplay(word = currentWord.word)
+
+                Spacer(Modifier.height(28.dp))
+
+                // Кнопки действий
+                Row(
+                    modifier              = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 40.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    // Послушать
+                    ActionButton(
+                        icon        = Icons.Outlined.VolumeUp,
+                        label       = "Послушать",
+                        color       = SoyleAccent,
+                        enabled     = uiState is ExerciseUiState.Idle || uiState is ExerciseUiState.Success || uiState is ExerciseUiState.Error,
+                        onClick     = {
+                            tts?.speak(currentWord.word, TextToSpeech.QUEUE_FLUSH, null, null)
+                        }
+                    )
+
+                    // Говорить / Запись
+                    val isRecording  = uiState is ExerciseUiState.Recording
+                    val isAnalyzing  = uiState is ExerciseUiState.Analyzing
+                    val micColor     = when {
+                        isRecording -> Color(0xFFE53935)
+                        isAnalyzing -> SoyleTextMuted
+                        else        -> Color(0xFF4CAF50)
+                    }
+                    val micIcon  = if (isRecording) Icons.Outlined.Stop else Icons.Outlined.Mic
+                    val micLabel = when {
+                        isRecording -> "Стоп"
+                        isAnalyzing -> "Анализ…"
+                        else        -> "Говори!"
+                    }
+                    ActionButton(
+                        icon    = micIcon,
+                        label   = micLabel,
+                        color   = micColor,
+                        enabled = !isAnalyzing,
+                        size    = 72.dp,
                         onClick = {
-                            if (ch != null && !isWordAssembled) {
-                                assembledIndices = assembledIndices.filterIndexed { i, _ -> i != idx }
+                            if (!hasPermission) {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                return@ActionButton
+                            }
+                            if (isRecording) {
+                                viewModel.stopRecording()
+                            } else {
+                                viewModel.startRecording(
+                                    phoneme = currentWord.word.lowercase(),
+                                    mode    = ExerciseMode.WORD
+                                )
                             }
                         }
                     )
                 }
-            }
 
-            if (!isWordAssembled) {
-                FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    indexedLetters.forEachIndexed { i, pair ->
-                        val isUsed = i in assembledIndices
-                        LetterTile(pair.second.toString(), isUsed) {
-                            if (!isUsed) {
-                                assembledIndices = assembledIndices + i
-                                speak(pair.second.toString())
-                            }
-                        }
+                Spacer(Modifier.height(24.dp))
+
+                // Результат произношения
+                AnimatedContent(
+                    targetState    = uiState,
+                    transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                    label          = "resultBanner",
+                    modifier       = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+                ) { state ->
+                    when (state) {
+                        is ExerciseUiState.Success -> ResultBanner(
+                            score    = state.score,
+                            feedback = state.feedback
+                        )
+                        is ExerciseUiState.Error -> ErrorBanner(message = state.message)
+                        is ExerciseUiState.Analyzing -> AnalyzingBanner()
+                        else -> Spacer(Modifier.height(56.dp))
                     }
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                Text(
+                    text      = "${currentIdx + 1} / $total",
+                    fontSize  = 12.sp,
+                    color     = SoyleTextMuted,
+                    modifier  = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+// ── Отображение слова с подсветкой Р ─────────────────────────────────────────
+
+@Composable
+private fun WordCardDisplay(word: String) {
+    val rIndex = word.indexOfFirst { it.lowercaseChar() == 'р' }
+    val annotated = buildAnnotatedString {
+        word.forEachIndexed { i, ch ->
+            if (i == rIndex) {
+                withStyle(SpanStyle(color = SoyleAccent, fontWeight = FontWeight.ExtraBold)) {
+                    append(ch.uppercaseChar().toString())
                 }
             } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (uiState is ExerciseUiState.Success && (uiState as ExerciseUiState.Success).score == 100) {
-                        Button(
-                            onClick = onNextLevel,
-                            colors = ButtonDefaults.buttonColors(containerColor = KidsMint),
-                            modifier = Modifier.fillMaxWidth().height(60.dp),
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Text("СЛЕДУЮЩИЙ УРОВЕНЬ ▶", fontSize = 18.sp, fontWeight = FontWeight.Black)
-                        }
-                        OutlinedButton(
-                            onClick = onBack,
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(2.dp, KidsMint)
-                        ) {
-                            Text("ДОМОЙ 🏠", color = KidsMint, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        IconButton(
-                            onClick = { viewModel.startRecording(word, ExerciseMode.WORD) },
-                            modifier = Modifier.size(100.dp).clip(CircleShape).background(if (uiState is ExerciseUiState.Recording) KidsPink else KidsMint)
-                        ) {
-                            Text(if (uiState is ExerciseUiState.Recording) "⏹" else "🎙", fontSize = 40.sp, color = Color.White)
-                        }
-                        if (uiState is ExerciseUiState.Recording) Text("Слушаю...", color = KidsPink, fontWeight = FontWeight.Bold)
-                        
-                        if (uiState is ExerciseUiState.Success && (uiState as ExerciseUiState.Success).score < 100) {
-                            Text("${(uiState as ExerciseUiState.Success).score}%", color = KidsOrange, fontWeight = FontWeight.Black, fontSize = 24.sp)
-                        }
-                    }
+                withStyle(SpanStyle(color = SoyleTextPrimary)) {
+                    append(ch.uppercaseChar().toString())
                 }
+            }
+        }
+    }
+    Box(
+        modifier         = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(SoyleSurface)
+                .border(1.5.dp, SoyleBorder, RoundedCornerShape(20.dp))
+                .padding(horizontal = 40.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text          = annotated,
+                fontSize      = 38.sp,
+                fontWeight    = FontWeight.Bold,
+                letterSpacing = 3.sp
+            )
+        }
+    }
+}
+
+// ── Кнопка действия ──────────────────────────────────────────────────────────
+
+@Composable
+private fun ActionButton(
+    icon    : androidx.compose.ui.graphics.vector.ImageVector,
+    label   : String,
+    color   : Color,
+    enabled : Boolean,
+    size    : androidx.compose.ui.unit.Dp = 60.dp,
+    onClick : () -> Unit
+) {
+    val scale by animateFloatAsState(
+        targetValue   = if (enabled) 1f else 0.9f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label         = "btnScale"
+    )
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .scale(scale)
+                .size(size)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f))
+                .border(2.dp, color.copy(alpha = if (enabled) 0.5f else 0.2f), CircleShape)
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector        = icon,
+                contentDescription = label,
+                tint               = if (enabled) color else color.copy(alpha = 0.4f),
+                modifier           = Modifier.size(size * 0.45f)
+            )
+        }
+        Text(
+            text      = label,
+            fontSize  = 11.sp,
+            color     = if (enabled) SoyleTextSecondary else SoyleTextMuted,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// ── Баннеры результата ────────────────────────────────────────────────────────
+
+@Composable
+private fun ResultBanner(score: Int, feedback: String) {
+    val isGood  = score >= 50
+    val bgColor = if (isGood) Color(0xFF4CAF50).copy(alpha = 0.12f) else Color(0xFFFF9800).copy(alpha = 0.12f)
+    val bdColor = if (isGood) Color(0xFF4CAF50).copy(alpha = 0.4f)  else Color(0xFFFF9800).copy(alpha = 0.4f)
+    val icon    = if (isGood) Icons.Outlined.CheckCircle else Icons.Outlined.Info
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(1.dp, bdColor, RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector        = icon,
+            contentDescription = null,
+            tint               = if (isGood) Color(0xFF4CAF50) else Color(0xFFFF9800),
+            modifier           = Modifier.size(22.dp)
+        )
+        Column {
+            Text(
+                text       = if (isGood) "Отлично! $score / 100" else "Ещё раз! $score / 100",
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color      = SoyleTextPrimary
+            )
+            if (feedback.isNotBlank()) {
+                Text(text = feedback, fontSize = 12.sp, color = SoyleTextSecondary)
             }
         }
     }
 }
 
 @Composable
-fun KidsGameMascot(text: String) {
+private fun ErrorBanner(message: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(KidsMintLight).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFE53935).copy(alpha = 0.10f))
+            .border(1.dp, Color(0xFFE53935).copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("🦜", fontSize = 40.sp)
-        Spacer(Modifier.width(12.dp))
-        Text(text, fontWeight = FontWeight.Bold, color = KidsTextPrimary, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector        = Icons.Outlined.MicOff,
+            contentDescription = null,
+            tint               = Color(0xFFE53935),
+            modifier           = Modifier.size(22.dp)
+        )
+        Text(
+            text     = message.take(60),
+            fontSize = 13.sp,
+            color    = SoyleTextSecondary
+        )
     }
 }
 
 @Composable
-fun WordTile(char: String, isActive: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (isActive) KidsMint else Color.White)
-            .border(2.dp, if (isActive) KidsMintDark else KidsBorder, RoundedCornerShape(12.dp))
-            .clickable(enabled = isActive) { onClick() },
-        contentAlignment = Alignment.Center
+private fun AnalyzingBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SoyleSurface)
+            .border(1.dp, SoyleBorder, RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(char, fontSize = 20.sp, fontWeight = FontWeight.Black, color = if (isActive) Color.White else KidsTextDisabled)
-    }
-}
-
-@Composable
-fun LetterTile(char: String, isUsed: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier.padding(4.dp).size(52.dp).clip(RoundedCornerShape(14.dp))
-            .background(if (isUsed) Color.LightGray else KidsOrange)
-            .clickable(enabled = !isUsed, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (!isUsed) Text(char, fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color.White)
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun FlowRow(modifier: Modifier, horizontalArrangement: Arrangement.Horizontal, content: @Composable () -> Unit) {
-    androidx.compose.foundation.layout.FlowRow(modifier = modifier, horizontalArrangement = horizontalArrangement) {
-        content()
+        CircularProgressIndicator(
+            modifier  = Modifier.size(18.dp),
+            color     = SoyleAccent,
+            strokeWidth = 2.dp
+        )
+        Text(
+            text     = "Анализирую произношение…",
+            fontSize = 13.sp,
+            color    = SoyleTextSecondary
+        )
     }
 }

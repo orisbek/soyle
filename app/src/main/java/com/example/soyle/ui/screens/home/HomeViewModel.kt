@@ -6,6 +6,8 @@ import com.example.soyle.domain.model.Exercise
 import com.example.soyle.domain.model.UserProgress
 import com.example.soyle.domain.repository.SpeechRepository
 import com.example.soyle.domain.usecase.GetDailyExercises
+import com.example.soyle.ui.components.Achievement as UiAchievement
+import com.example.soyle.ui.components.checkAchievement
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,21 +18,22 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
-    val isLoading        : Boolean        = true,
-    val userName         : String         = "Ученик",
-    val currentStreak    : Int            = 0,
-    val longestStreak    : Int            = 0,
-    val totalXp          : Int            = 0,
-    val level            : Int            = 1,
-    val xpToNextLevel    : Int            = 500,
-    val xpProgress       : Float          = 0f,
-    val exercises        : List<Exercise> = emptyList(),
-    val todayDone        : Int            = 0,
-    val todayTotal       : Int            = 5,
-    val greeting         : String         = "Привет!",
-    val avgScore         : Int            = 0,   // среднее по всем фонемам
-    val weekCheckedCount : Int            = 0,   // дней активности на этой неделе (≤7)
-    val error            : String?        = null
+    val isLoading          : Boolean        = true,
+    val userName           : String         = "Ученик",
+    val currentStreak      : Int            = 0,
+    val longestStreak      : Int            = 0,
+    val totalXp            : Int            = 0,
+    val level              : Int            = 1,
+    val xpToNextLevel      : Int            = 500,
+    val xpProgress         : Float          = 0f,
+    val exercises          : List<Exercise> = emptyList(),
+    val todayDone          : Int            = 0,
+    val todayTotal         : Int            = 5,
+    val greeting           : String         = "Привет!",
+    val avgScore           : Int            = 0,
+    val weekCheckedCount   : Int            = 0,
+    val unlockedAchievement: UiAchievement? = null,
+    val error              : String?        = null
 )
 
 @HiltViewModel
@@ -71,18 +74,28 @@ class HomeViewModel @Inject constructor(
                         val xpInCurrentLevel = progress.totalXp % 500
                         val avg = if (progress.phonemeScores.isEmpty()) 0
                             else progress.phonemeScores.values.average().toInt()
-                        // Кол-во дней на этой неделе = min(текущая серия, 7)
                         val weekChecked = minOf(progress.currentStreak, 7)
+                        // Проверяем новые ачивки
+                        val newAchievement = checkAchievement(
+                            streak       = progress.currentStreak,
+                            totalXp      = progress.totalXp,
+                            sessionCount = progress.totalSessions,
+                            prevStreak   = state.currentStreak,
+                            prevXp       = state.totalXp,
+                            prevSessions = state.todayDone
+                        )
                         state.copy(
-                            currentStreak    = progress.currentStreak,
-                            longestStreak    = progress.longestStreak,
-                            totalXp          = progress.totalXp,
-                            level            = progress.level,
-                            xpProgress       = xpInCurrentLevel / 500f,
-                            xpToNextLevel    = 500 - xpInCurrentLevel,
-                            greeting         = buildGreeting(progress),
-                            avgScore         = avg,
-                            weekCheckedCount = weekChecked
+                            currentStreak       = progress.currentStreak,
+                            longestStreak       = progress.longestStreak,
+                            totalXp             = progress.totalXp,
+                            level               = progress.level,
+                            xpProgress          = xpInCurrentLevel / 500f,
+                            xpToNextLevel       = 500 - xpInCurrentLevel,
+                            greeting            = buildGreeting(progress),
+                            avgScore            = avg,
+                            weekCheckedCount    = weekChecked,
+                            todayDone           = progress.totalSessions,
+                            unlockedAchievement = newAchievement ?: state.unlockedAchievement
                         )
                     }
                 }
@@ -92,6 +105,10 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         _uiState.update { it.copy(isLoading = true, error = null) }
         loadData()
+    }
+
+    fun dismissAchievement() {
+        _uiState.update { it.copy(unlockedAchievement = null) }
     }
 
     private fun buildGreeting(progress: UserProgress): String {
