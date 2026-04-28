@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -12,6 +13,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.soyle.ui.screens.auth.AuthViewModel
+import com.example.soyle.ui.screens.auth.LoginScreen
+import com.example.soyle.ui.screens.auth.RegisterScreen
 import com.example.soyle.ui.screens.checkin.CheckInScreen
 import com.example.soyle.ui.screens.exercise.ExerciseScreen
 import com.example.soyle.ui.screens.game.GamesScreen
@@ -19,6 +23,10 @@ import com.example.soyle.ui.screens.home.HomeScreen
 import com.example.soyle.ui.screens.onboarding.OnboardingScreen
 import com.example.soyle.ui.screens.profile.ProfileScreen
 import com.example.soyle.ui.screens.result.ResultScreen
+import com.example.soyle.ui.screens.settings.AboutMeScreen
+import com.example.soyle.ui.screens.settings.NotificationsScreen
+import com.example.soyle.ui.screens.settings.ProfileEditScreen
+import com.example.soyle.ui.screens.settings.SettingsScreen
 import com.example.soyle.ui.theme.SoyleBg
 
 // ── Маршруты с нижним баром ───────────────────────────────────────────────────
@@ -33,12 +41,17 @@ private val bottomNavRoutes = setOf(
 
 @Composable
 fun SoyleNavGraph(
-    navController  : NavHostController = rememberNavController(),
-    startDestination: String           = Screen.Onboarding.route
+    navController: NavHostController = rememberNavController()
 ) {
+    val authViewModel: AuthViewModel = hiltViewModel()
+
+    // Стартовая точка определяется по состоянию авторизации
+    val startDestination = remember {
+        if (authViewModel.isLoggedIn) Screen.Home.route else Screen.Login.route
+    }
+
     val navBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStack?.destination?.route
-
     val showBottomBar = currentRoute in bottomNavRoutes
 
     Scaffold(
@@ -65,6 +78,33 @@ fun SoyleNavGraph(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+
+            // ── Вход ──────────────────────────────────────────────────────
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    onLoginSuccess = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onRegister = {
+                        navController.navigate(Screen.Register.route)
+                    }
+                )
+            }
+
+            // ── Регистрация ───────────────────────────────────────────────
+            composable(Screen.Register.route) {
+                RegisterScreen(
+                    onRegisterSuccess = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             // ── Онбординг ─────────────────────────────────────────────────
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(
@@ -83,9 +123,7 @@ fun SoyleNavGraph(
                     onOpenExercise = { id ->
                         navController.navigate(Screen.Exercise.createRoute(id, "Р"))
                     },
-                    onOpenProfile  = {
-                        navController.navigate(Screen.Profile.route)
-                    }
+                    onOpenProfile  = { navController.navigate(Screen.Profile.route) }
                 )
             }
 
@@ -101,19 +139,45 @@ fun SoyleNavGraph(
             // ── Профиль ───────────────────────────────────────────────────
             composable(Screen.Profile.route) {
                 ProfileScreen(
-                    onClose = { navController.popBackStack() }
+                    onClose             = { navController.popBackStack() },
+                    onEditProfile       = { navController.navigate(Screen.ProfileEdit.route) },
+                    onOpenSettings      = { navController.navigate(Screen.Settings.route) },
+                    onOpenAboutMe       = { navController.navigate(Screen.AboutMe.route) },
+                    onOpenNotifications = { navController.navigate(Screen.Notifications.route) },
+                    onSignOut           = {
+                        authViewModel.signOut()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
+            }
+
+            // ── Редактировать профиль ─────────────────────────────────────
+            composable(Screen.ProfileEdit.route) {
+                ProfileEditScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Настройки ─────────────────────────────────────────────────
+            composable(Screen.Settings.route) {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── О себе ────────────────────────────────────────────────────
+            composable(Screen.AboutMe.route) {
+                AboutMeScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Уведомления ───────────────────────────────────────────────
+            composable(Screen.Notifications.route) {
+                NotificationsScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Чек-ин ────────────────────────────────────────────────────
             composable(Screen.CheckIn.route) {
                 CheckInScreen(
-                    onFinish = {
-                        navController.popBackStack()
-                    },
-                    onSkip = {
-                        navController.popBackStack()
-                    }
+                    onFinish = { navController.popBackStack() },
+                    onSkip   = { navController.popBackStack() }
                 )
             }
 
@@ -142,10 +206,7 @@ fun SoyleNavGraph(
             composable(
                 route     = Screen.GamePlay.route,
                 arguments = listOf(navArgument("type") { type = NavType.StringType })
-            ) { back ->
-                // val type = back.arguments?.getString("type") ?: "catch_r"
-                // GamePlayScreen(type = type, onBack = { navController.popBackStack() })
-                // Пока заглушка — экран упражнения
+            ) {
                 ExerciseScreen(
                     phoneme = "Р",
                     title   = "Игра",

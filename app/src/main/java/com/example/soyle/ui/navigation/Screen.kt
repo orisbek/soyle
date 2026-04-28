@@ -1,6 +1,10 @@
 package com.example.soyle.ui.navigation
 
 sealed class Screen(val route: String) {
+    // ── Авторизация ────────────────────────────────────────────────────────
+    data object Login    : Screen("login")
+    data object Register : Screen("register")
+
     // ── Онбординг ──────────────────────────────────────────────────────────
     data object Onboarding     : Screen("onboarding")
     data object OnboardingGoal : Screen("onboarding/goal")
@@ -12,6 +16,12 @@ sealed class Screen(val route: String) {
     data object Home    : Screen("home")
     data object Games   : Screen("games")
     data object Profile : Screen("profile")
+
+    // ── Настройки ─────────────────────────────────────────────────────────
+    data object Settings       : Screen("settings")
+    data object ProfileEdit    : Screen("profile_edit")
+    data object AboutMe        : Screen("about_me")
+    data object Notifications  : Screen("notifications")
 
     // ── Вложенные экраны ──────────────────────────────────────────────────
     data object CheckIn : Screen("checkin")

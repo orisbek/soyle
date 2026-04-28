@@ -8,14 +8,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.soyle.ui.components.*
 import com.example.soyle.ui.theme.*
 
@@ -25,111 +31,244 @@ enum class GameCategory { PHONEME, BREATHING, VOCABULARY, TONGUE }
 
 data class GameItem(
     val id          : String,
-    val icon        : String,
+    val icon        : ImageVector,
     val title       : String,
     val description : String,
     val category    : GameCategory,
     val difficulty  : Int,          // 1-3
     val duration    : String,
     val isFeatured  : Boolean = false,
-    val isLocked    : Boolean = false
+    val isLocked    : Boolean = false,
+    /** Ключевые слова для поиска (дополнительно к title/description) */
+    val tags        : List<String> = emptyList()
 )
+
+// ── Список всех игр ────────────────────────────────────────────────────────────
+
+private val ALL_GAMES = listOf(
+    GameItem("catch_r",  Icons.Outlined.GpsFixed,        "Поймай букву «Р»",   "Нажимай только на нужную букву",       GameCategory.PHONEME,    1, "3 мин", isFeatured = true,  tags = listOf("р", "буква", "фонема")),
+    GameItem("breath1",  Icons.Outlined.Air,              "Воздушный шарик",    "Надуй шарик правильным дыханием",      GameCategory.BREATHING,  1, "2 мин",                     tags = listOf("дыхание", "шарик")),
+    GameItem("word_r",   Icons.Outlined.RecordVoiceOver,  "Слова на «Р»",       "Произнеси слово — получи очко",        GameCategory.PHONEME,    2, "5 мин",                     tags = listOf("р", "слова", "произношение")),
+    GameItem("tongue1",  Icons.Outlined.Mic,              "Гимнастика языка",   "Следуй за упражнениями",               GameCategory.TONGUE,     1, "4 мин",                     tags = listOf("язык", "гимнастика")),
+    GameItem("echo",     Icons.Outlined.GraphicEq,        "Эхо",                "Повтори звук точь-в-точь",             GameCategory.PHONEME,    2, "5 мин",                     tags = listOf("повтор", "звук", "речь")),
+    GameItem("story",    Icons.Outlined.AutoStories,      "Составь историю",    "Придумай рассказ по картинке",         GameCategory.VOCABULARY, 3, "8 мин",                     tags = listOf("история", "речь", "словарь")),
+    GameItem("whisper",  Icons.Outlined.VolumeDown,       "Шёпот и крик",       "Управляй громкостью голоса",           GameCategory.BREATHING,  1, "3 мин",                     tags = listOf("громкость", "голос", "дыхание")),
+    GameItem("tongue2",  Icons.Outlined.Gesture,          "Змейка-язычок",      "Двигай языком по дорожке",             GameCategory.TONGUE,     2, "5 мин",                     tags = listOf("язык", "движение")),
+    GameItem("syllable", Icons.Outlined.MusicNote,        "Ритм слогов",        "Воспроизведи ритмический паттерн",     GameCategory.PHONEME,    2, "4 мин",                     tags = listOf("ритм", "слоги", "шипящие")),
+    GameItem("vocab",    Icons.Outlined.Stars,            "Слово дня",          "Изучи новое слово",                    GameCategory.VOCABULARY, 1, "2 мин",                     tags = listOf("слово", "словарь", "лексика")),
+    GameItem("hard1",    Icons.Outlined.Speed,            "Скороговорки",       "Скажи как можно быстрее и чисто",      GameCategory.PHONEME,    3, "6 мин", isLocked = true,    tags = listOf("скороговорка", "быстро", "л", "шипящие")),
+)
+
+/** Маппинг цели пользователя → id рекомендуемой игры */
+private fun featuredIdForGoal(goal: String): String = when {
+    goal.contains("Р", ignoreCase = true) || goal.contains("р", ignoreCase = true) -> "catch_r"
+    goal.contains("Л", ignoreCase = true)                                           -> "word_r"
+    goal.contains("шипящ", ignoreCase = true)                                       -> "syllable"
+    goal.contains("общ", ignoreCase = true) || goal.contains("речь", ignoreCase = true) -> "story"
+    else                                                                            -> "catch_r"
+}
 
 // ── Экран игр ─────────────────────────────────────────────────────────────────
 
 @Composable
 fun GamesScreen(
-    onOpenGame: (String) -> Unit = {}
+    onOpenGame : (String) -> Unit = {},
+    viewModel  : GamesViewModel   = hiltViewModel()
 ) {
+    val userGoal    by viewModel.userGoal.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
     var selectedCategory by remember { mutableStateOf<GameCategory?>(null) }
+    var searchActive     by remember { mutableStateOf(false) }
+    val focusRequester   = remember { FocusRequester() }
 
-    val allGames = remember {
-        listOf(
-            GameItem("catch_r",  "🎯", "Поймай букву «Р»",    "Нажимай только на нужную букву",         GameCategory.PHONEME,    1, "3 мин", isFeatured = true),
-            GameItem("breath1",  "🌬️", "Воздушный шарик",     "Надуй шарик правильным дыханием",        GameCategory.BREATHING,  1, "2 мин"),
-            GameItem("word_r",   "🔤", "Слова на «Р»",         "Произнеси слово — получи очко",          GameCategory.PHONEME,    2, "5 мин"),
-            GameItem("tongue1",  "👅", "Гимнастика языка",     "Следуй за упражнениями",                 GameCategory.TONGUE,     1, "4 мин"),
-            GameItem("echo",     "🎵", "Эхо",                  "Повтори звук точь-в-точь",               GameCategory.PHONEME,    2, "5 мин"),
-            GameItem("story",    "📖", "Составь историю",      "Придумай рассказ по картинке",           GameCategory.VOCABULARY, 3, "8 мин"),
-            GameItem("whisper",  "🤫", "Шёпот и крик",         "Управляй громкостью голоса",             GameCategory.BREATHING,  1, "3 мин"),
-            GameItem("tongue2",  "🐍", "Змейка-язычок",        "Двигай языком по дорожке",               GameCategory.TONGUE,     2, "5 мин"),
-            GameItem("syllable", "🎶", "Ритм слогов",          "Воспроизведи ритмический паттерн",       GameCategory.PHONEME,    2, "4 мин"),
-            GameItem("vocab",    "🌟", "Слово дня",            "Изучи новое слово",                      GameCategory.VOCABULARY, 1, "2 мин"),
-            GameItem("hard1",    "🔬", "Скороговорки",         "Скажи как можно быстрее и чисто",        GameCategory.PHONEME,    3, "6 мин", isLocked = true),
-        )
+    // Рекомендуемая игра на основе цели
+    val featuredId = featuredIdForGoal(userGoal)
+    val featuredGame = ALL_GAMES.first { it.id == featuredId }
+
+    // Фильтрация: поиск + категория
+    val filtered = remember(searchQuery, selectedCategory) {
+        ALL_GAMES.filter { game ->
+            val matchesSearch = searchQuery.isBlank() ||
+                game.title.contains(searchQuery, ignoreCase = true) ||
+                game.description.contains(searchQuery, ignoreCase = true) ||
+                game.tags.any { it.contains(searchQuery, ignoreCase = true) }
+            val matchesCategory = selectedCategory == null || game.category == selectedCategory
+            matchesSearch && matchesCategory
+        }
     }
-
-    val filtered = if (selectedCategory == null) allGames
-    else allGames.filter { it.category == selectedCategory }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(SoyleBg)
     ) {
-        // ── Заголовок ─────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            Text(
-                text          = "игры.",
-                fontWeight    = FontWeight.Bold,
-                fontSize      = 34.sp,
-                color         = SoyleTextPrimary,
-                letterSpacing = (-1).sp
-            )
-            // Кнопка поиска
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(SoyleSurface),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("🔍", fontSize = 16.sp)
+        // ── Заголовок + поиск ──────────────────────────────────────────────
+        AnimatedContent(
+            targetState   = searchActive,
+            transitionSpec = {
+                fadeIn(tween(150)) togetherWith fadeOut(tween(150))
+            },
+            label = "searchToggle"
+        ) { isSearching ->
+            if (isSearching) {
+                // Строка поиска
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value         = searchQuery,
+                        onValueChange = viewModel::updateSearch,
+                        placeholder   = {
+                            Text("Поиск игр...", color = SoyleTextMuted, fontSize = 14.sp)
+                        },
+                        singleLine    = true,
+                        leadingIcon   = {
+                            Icon(
+                                imageVector        = Icons.Outlined.Search,
+                                contentDescription = null,
+                                tint               = SoyleTextMuted,
+                                modifier           = Modifier.size(20.dp)
+                            )
+                        },
+                        trailingIcon  = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.updateSearch("") }) {
+                                    Icon(
+                                        imageVector        = Icons.Outlined.Close,
+                                        contentDescription = "Очистить",
+                                        tint               = SoyleTextMuted,
+                                        modifier           = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier      = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
+                        shape         = RoundedCornerShape(14.dp),
+                        colors        = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor   = SoyleSurface,
+                            unfocusedContainerColor = SoyleSurface,
+                            focusedBorderColor      = SoyleAccent,
+                            unfocusedBorderColor    = SoyleBorder,
+                            focusedTextColor        = SoyleTextPrimary,
+                            unfocusedTextColor      = SoyleTextPrimary,
+                            cursorColor             = SoyleAccent
+                        )
+                    )
+                    TextButton(onClick = {
+                        searchActive = false
+                        viewModel.updateSearch("")
+                    }) {
+                        Text("Отмена", color = SoyleTextSecondary, fontSize = 14.sp)
+                    }
+
+                    LaunchedEffect(Unit) {
+                        focusRequester.requestFocus()
+                    }
+                }
+            } else {
+                // Обычная шапка
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text          = "игры.",
+                        fontWeight    = FontWeight.Bold,
+                        fontSize      = 34.sp,
+                        color         = SoyleTextPrimary,
+                        letterSpacing = (-1).sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(SoyleSurface)
+                            .clickable { searchActive = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Outlined.Search,
+                            contentDescription = "Поиск",
+                            tint               = SoyleTextSecondary,
+                            modifier           = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
         }
 
-        // ── Апрельский баннер (как Featured в Stoic Explore) ──────────────
-        FeaturedBanner(game = allGames.first { it.isFeatured }, onClick = onOpenGame)
+        // ── Рекомендуемый баннер (скрывается при поиске) ──────────────────
+        if (!searchActive || searchQuery.isBlank()) {
+            if (searchQuery.isBlank()) {
+                FeaturedBanner(
+                    game    = featuredGame,
+                    goal    = userGoal,
+                    onClick = onOpenGame
+                )
+                Spacer(Modifier.height(20.dp))
+            }
 
-        // ── Фильтры категорий ──────────────────────────────────────────────
-        Spacer(Modifier.height(20.dp))
-        CategoryFilterRow(
-            selected  = selectedCategory,
-            onSelect  = { selectedCategory = if (selectedCategory == it) null else it }
-        )
+            // ── Фильтры категорий ──────────────────────────────────────────
+            CategoryFilterRow(
+                selected = selectedCategory,
+                onSelect = { selectedCategory = if (selectedCategory == it) null else it }
+            )
+            Spacer(Modifier.height(16.dp))
+        }
 
         // ── Список игр ────────────────────────────────────────────────────
-        Spacer(Modifier.height(16.dp))
-        LazyColumn(
-            modifier            = Modifier.weight(1f),
-            contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Парами (2 в строке — как в Stoic Explore)
-            val pairs = filtered.chunked(2)
-            items(pairs) { pair ->
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+        if (filtered.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    pair.forEach { game ->
-                        GameCard(
-                            game     = game,
-                            onClick  = { onOpenGame(game.id) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    // Заглушка если нечётное
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    Icon(
+                        imageVector        = Icons.Outlined.SearchOff,
+                        contentDescription = null,
+                        tint               = SoyleTextMuted,
+                        modifier           = Modifier.size(40.dp)
+                    )
+                    Text("Ничего не найдено", fontSize = 15.sp, color = SoyleTextMuted)
                 }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+        } else {
+            LazyColumn(
+                modifier            = Modifier.weight(1f),
+                contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val pairs = filtered.chunked(2)
+                items(pairs) { pair ->
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        pair.forEach { game ->
+                            GameCard(
+                                game     = game,
+                                onClick  = { onOpenGame(game.id) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
         }
     }
 }
@@ -137,7 +276,8 @@ fun GamesScreen(
 // ── Баннер фичи ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
+private fun FeaturedBanner(game: GameItem, goal: String, onClick: (String) -> Unit) {
+    val subtitle = if (goal.isNotBlank()) "На основе вашей цели" else "РЕКОМЕНДУЕМ"
     Box(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -148,7 +288,6 @@ private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
             .clickable { onClick(game.id) }
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            // Иллюстрация
             Box(
                 modifier = Modifier
                     .width(120.dp)
@@ -156,7 +295,12 @@ private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
                     .background(SoyleAccentSoft),
                 contentAlignment = Alignment.Center
             ) {
-                Text(game.icon, fontSize = 48.sp)
+                Icon(
+                    imageVector        = game.icon,
+                    contentDescription = game.title,
+                    tint               = SoyleAccent,
+                    modifier           = Modifier.size(52.dp)
+                )
             }
 
             Column(
@@ -166,10 +310,10 @@ private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text     = "РЕКОМЕНДУЕМ",
-                    fontSize = 9.sp,
-                    color    = SoyleTextMuted,
-                    fontWeight = FontWeight.SemiBold,
+                    text          = subtitle.uppercase(),
+                    fontSize      = 9.sp,
+                    color         = SoyleTextMuted,
+                    fontWeight    = FontWeight.SemiBold,
                     letterSpacing = 1.sp
                 )
                 Text(
@@ -180,9 +324,9 @@ private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
                     lineHeight = 22.sp
                 )
                 Text(
-                    text     = game.description,
-                    fontSize = 12.sp,
-                    color    = SoyleTextSecondary,
+                    text       = game.description,
+                    fontSize   = 12.sp,
+                    color      = SoyleTextSecondary,
                     lineHeight = 17.sp
                 )
                 Box(
@@ -192,10 +336,10 @@ private fun FeaturedBanner(game: GameItem, onClick: (String) -> Unit) {
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text     = "Играть →",
-                        fontSize = 12.sp,
+                        text       = "Играть →",
+                        fontSize   = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color    = SoyleButtonPrimaryText
+                        color      = SoyleButtonPrimaryText
                     )
                 }
             }
@@ -234,10 +378,10 @@ private fun CategoryFilterRow(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text     = label,
-                    fontSize = 13.sp,
+                    text       = label,
+                    fontSize   = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color    = if (isActive) SoyleButtonPrimaryText else SoyleTextSecondary
+                    color      = if (isActive) SoyleButtonPrimaryText else SoyleTextSecondary
                 )
             }
         }
@@ -261,13 +405,14 @@ private fun GameCard(game: GameItem, onClick: () -> Unit, modifier: Modifier = M
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(90.dp)
-                    .background(if (game.isLocked) SoyleSurface2 else SoyleSurface2),
+                    .background(SoyleSurface2),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = game.icon,
-                    fontSize = 40.sp,
-                    color = if (game.isLocked) Color(0xFF333333) else Color.Unspecified
+                Icon(
+                    imageVector        = game.icon,
+                    contentDescription = game.title,
+                    tint               = if (game.isLocked) SoyleTextMuted else SoyleAccent,
+                    modifier           = Modifier.size(40.dp)
                 )
                 if (game.isLocked) {
                     Box(
@@ -275,10 +420,16 @@ private fun GameCard(game: GameItem, onClick: () -> Unit, modifier: Modifier = M
                             .align(Alignment.TopStart)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(SoyleAccentSoft)
+                            .background(SoyleSurface)
+                            .border(1.dp, SoyleBorder, RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
-                        Text("🔒", fontSize = 9.sp)
+                        Icon(
+                            imageVector        = Icons.Outlined.Lock,
+                            contentDescription = "Заблокировано",
+                            tint               = SoyleTextMuted,
+                            modifier           = Modifier.size(10.dp)
+                        )
                     }
                 }
             }
@@ -287,7 +438,7 @@ private fun GameCard(game: GameItem, onClick: () -> Unit, modifier: Modifier = M
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Сложность
+                // Сложность (точки)
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     repeat(3) { i ->
                         Box(
