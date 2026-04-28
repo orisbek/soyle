@@ -18,7 +18,14 @@ import com.example.soyle.ui.screens.auth.LoginScreen
 import com.example.soyle.ui.screens.auth.RegisterScreen
 import com.example.soyle.ui.screens.checkin.CheckInScreen
 import com.example.soyle.ui.screens.exercise.ExerciseScreen
+import com.example.soyle.ui.screens.game.CatchLetterScreen
 import com.example.soyle.ui.screens.game.GamesScreen
+import com.example.soyle.ui.screens.game.GuessWordScreen
+import com.example.soyle.ui.screens.game.PoemsScreen
+import com.example.soyle.ui.screens.game.TongueExerciseScreen
+import com.example.soyle.ui.screens.game.TongueTwistersScreen
+import com.example.soyle.ui.screens.game.WhereIsLetterScreen
+import com.example.soyle.ui.screens.game.WordBuildingScreen
 import com.example.soyle.ui.screens.home.HomeScreen
 import com.example.soyle.ui.screens.onboarding.OnboardingScreen
 import com.example.soyle.ui.screens.profile.ProfileScreen
@@ -120,9 +127,8 @@ fun SoyleNavGraph(
             composable(Screen.Home.route) {
                 HomeScreen(
                     onOpenCheckIn  = { navController.navigate(Screen.CheckIn.route) },
-                    onOpenExercise = { id ->
-                        navController.navigate(Screen.Exercise.createRoute(id, "Р"))
-                    },
+                    onOpenExercise = { id -> navController.navigate(Screen.Exercise.createRoute(id, "Р")) },
+                    onOpenGame     = { id -> navController.navigate(Screen.GamePlay.createRoute(id)) },
                     onOpenProfile  = { navController.navigate(Screen.Profile.route) }
                 )
             }
@@ -206,12 +212,19 @@ fun SoyleNavGraph(
             composable(
                 route     = Screen.GamePlay.route,
                 arguments = listOf(navArgument("type") { type = NavType.StringType })
-            ) {
-                ExerciseScreen(
-                    phoneme = "Р",
-                    title   = "Игра",
-                    onBack  = { navController.popBackStack() }
-                )
+            ) { back ->
+                val type    = back.arguments?.getString("type") ?: ""
+                val onBack  = { navController.popBackStack(); Unit }
+                when (type) {
+                    "catch_r"      -> CatchLetterScreen(onBack = onBack)
+                    "guess_word"   -> GuessWordScreen(onBack = onBack)
+                    "where_r"      -> WhereIsLetterScreen(onBack = onBack)
+                    "word_r"       -> WordBuildingScreen(onBack = onBack)
+                    "tongue_twist" -> TongueTwistersScreen(onBack = onBack)
+                    "poems"        -> PoemsScreen(onBack = onBack)
+                    "tongue_ex"    -> TongueExerciseScreen(onBack = onBack)
+                    else           -> CatchLetterScreen(onBack = onBack)
+                }
             }
 
             // ── Результат ─────────────────────────────────────────────────
